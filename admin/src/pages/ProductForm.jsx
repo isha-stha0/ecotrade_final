@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { productAPI } from '../api/api';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Upload, X } from 'lucide-react';
+import '../styles/ProductForm.css';
 
 const ProductForm = ({ mode = 'create' }) => {
   const { id } = useParams();
@@ -9,15 +10,20 @@ const ProductForm = ({ mode = 'create' }) => {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Stationery');
-  const [price, setPrice] = useState(0);
-  const [stock, setStock] = useState(0);
-  const [madeFrom, setMadeFrom] = useState('');
-  const [ecoImpact, setEcoImpact] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    category: 'Stationery',
+    price: 0,
+    stock: 0,
+    madeFrom: '',
+    ecoImpact: '',
+  });
+
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
+
+  const categories = ['Stationery', 'Bags', 'Home Decor', 'Office', 'Storage', 'Gardening', 'Electronics', 'Other'];
 
   useEffect(() => {
     if (mode === 'edit' && id) {
@@ -25,126 +31,264 @@ const ProductForm = ({ mode = 'create' }) => {
         setLoading(true);
         try {
           const res = await productAPI.getProducts();
-          const product = (res || []).find((p) => p._id === id) || null;
+          const product = (res || []).find((p) => p._id === id);
           if (product) {
-            setName(product.name || '');
-            setDescription(product.description || '');
-            setCategory(product.category || 'Stationery');
-            setPrice(product.price || 0);
-            setStock(product.stock_quantity || product.stock || 0);
-            setMadeFrom(product.madeFrom || product.made_from || '');
-            setEcoImpact(product.ecoImpact || product.eco_impact || '');
-            setImagePreview(product.image_urls?.[0] || product.image || '');
+            setFormData({
+              name: product.name || '',
+              description: product.description || '',
+              category: product.category || 'Stationery',
+              price: product.price || 0,
+              stock: product.stock_quantity || product.stock || 0,
+              madeFrom: product.madeFrom || product.made_from || '',
+              ecoImpact: product.ecoImpact || product.eco_impact || '',
+            });
+            if (product.image_urls?.[0] || product.image) {
+              setImagePreviews([product.image_urls?.[0] || product.image]);
+            }
           }
         } catch (e) {
-          console.error('Failed to load product for edit', e);
-        } finally { setLoading(false); }
+          console.error('Failed to load product', e);
+        } finally {
+          setLoading(false);
+        }
       })();
     }
   }, [mode, id]);
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'price' || name === 'stock' ? Number(value) : value
+    }));
+  };
+
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    setImageFiles((prev) => [...prev, ...files]);
-    setImagePreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
+    
+    files.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        setImageFiles(prev => [...prev, file]);
+        setImagePreviews(prev => [...prev, URL.createObjectURL(file)]);
+      }
+    });
   };
 
   const removeImageAt = (index) => {
-    setImageFiles((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!formData.name.trim()) {
+      alert('Product name is required');
+      return;
+    }
+    if (!formData.description.trim()) {
+      alert('Description is required');
+      return;
+    }
+
     setActionLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('name', name);
-      formData.append('description', description);
-      formData.append('category', category);
-      formData.append('price', price);
-      formData.append('stock', stock);
-      formData.append('madeFrom', madeFrom);
-      formData.append('ecoImpact', ecoImpact);
-  // append all images to image_urls so backend's upload.array('image_urls') handles them
-  for (const f of imageFiles) formData.append('image_urls', f);
+      const fd = new FormData();
+      fd.append('name', formData.name);
+      fd.append('description', formData.description);
+      fd.append('category', formData.category);
+      fd.append('price', formData.price);
+      fd.append('stock', formData.stock);
+      fd.append('madeFrom', formData.madeFrom);
+      fd.append('ecoImpact', formData.ecoImpact);
+
+      for (const file of imageFiles) {
+        fd.append('image_urls', file);
+      }
 
       if (mode === 'edit' && id) {
-        await productAPI.updateProduct(id, formData);
+        await productAPI.updateProduct(id, fd);
       } else {
-        await productAPI.createProduct(formData);
+        await productAPI.createProduct(fd);
       }
 
       navigate('/products');
     } catch (err) {
-      console.error('Save product failed', err);
+      console.error('Save failed:', err);
+      alert(err.response?.data?.message || 'Error saving product');
     } finally {
       setActionLoading(false);
     }
   };
 
-  if (loading) return <div style={{ padding: '3rem', textAlign: 'center' }}><Loader2 className="animate-spin" /></div>;
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <Loader2 className="spinner" size={40} />
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div>
-        <h1 style={{ fontSize: '1.5rem', margin: 0 }}>{mode === 'edit' ? 'Edit Product' : 'Add New Product'}</h1>
+    <div className="product-form-wrapper">
+      <div className="form-container">
+        <div className="form-header">
+          <h1>{mode === 'edit' ? 'Edit Product' : 'Add New Product'}</h1>
+          <button 
+            type="button" 
+            onClick={() => navigate('/products')}
+            className="close-btn"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="product-form">
+          {/* Row 1: Name & Category */}
+          <div className="form-row">
+            <div className="form-group">
+              <label>Product Name</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                placeholder="Enter product name"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Category</label>
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleInputChange}
+              >
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Row 2: Price & Stock */}
+          <div className="form-row">
+            <div className="form-group">
+              <label>Price (NPR)</label>
+              <input
+                type="number"
+                name="price"
+                value={formData.price}
+                onChange={handleInputChange}
+                placeholder="0"
+                min="0"
+              />
+            </div>
+            <div className="form-group">
+              <label>Stock Quantity</label>
+              <input
+                type="number"
+                name="stock"
+                value={formData.stock}
+                onChange={handleInputChange}
+                placeholder="0"
+                min="0"
+              />
+            </div>
+          </div>
+
+          {/* Row 3: Made From & Eco Impact */}
+          <div className="form-row">
+            <div className="form-group">
+              <label>Made From</label>
+              <input
+                type="text"
+                name="madeFrom"
+                value={formData.madeFrom}
+                onChange={handleInputChange}
+                placeholder="e.g., Recycled Paper"
+              />
+            </div>
+            <div className="form-group">
+              <label>Eco Impact</label>
+              <input
+                type="text"
+                name="ecoImpact"
+                value={formData.ecoImpact}
+                onChange={handleInputChange}
+                placeholder="e.g., Saves 2kg CO2"
+              />
+            </div>
+          </div>
+
+          {/* Row 4: Description */}
+          <div className="form-group full-width">
+            <label>Description</label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              placeholder="Describe the product and its benefits"
+              rows="4"
+              required
+            />
+          </div>
+
+          {/* Row 5: Images */}
+          <div className="form-group full-width">
+            <label>Product Images</label>
+            <div className="upload-box">
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleImageChange}
+                id="imageInput"
+              />
+              <label htmlFor="imageInput" className="upload-label">
+                <Upload size={24} />
+                <span>Click to upload images</span>
+              </label>
+            </div>
+
+            {imagePreviews.length > 0 && (
+              <div className="image-grid">
+                {imagePreviews.map((preview, idx) => (
+                  <div key={idx} className="image-item">
+                    <img src={preview} alt={`Preview ${idx + 1}`} />
+                    <button
+                      type="button"
+                      onClick={() => removeImageAt(idx)}
+                      className="remove-btn"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Buttons */}
+          <div className="form-actions">
+            <button
+              type="button"
+              onClick={() => navigate('/products')}
+              className="btn btn-cancel"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={actionLoading}
+              className="btn btn-submit"
+            >
+              {actionLoading ? 'Saving...' : (mode === 'edit' ? 'Update Product' : 'Create Product')}
+            </button>
+          </div>
+        </form>
       </div>
-      <form onSubmit={handleSubmit} className="card">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div>
-            <label className="form-label">Name</label>
-            <input className="form-control" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-          <div>
-            <label className="form-label">Category</label>
-            <select className="form-control" value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option>Stationery</option>
-              <option>Bags</option>
-              <option>Home Decor</option>
-              <option>Office</option>
-              <option>Storage</option>
-              <option>Gardening</option>
-              <option>Other</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label">Price</label>
-            <input type="number" className="form-control" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-          </div>
-          <div>
-            <label className="form-label">Stock</label>
-            <input type="number" className="form-control" value={stock} onChange={(e) => setStock(Number(e.target.value))} />
-          </div>
-
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label className="form-label">Description</label>
-            <textarea className="form-control" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-
-          <div>
-            <label className="form-label">Made From</label>
-            <input className="form-control" value={madeFrom} onChange={(e) => setMadeFrom(e.target.value)} />
-          </div>
-          <div>
-            <label className="form-label">Environmental Impact</label>
-            <input className="form-control" value={ecoImpact} onChange={(e) => setEcoImpact(e.target.value)} />
-          </div>
-
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label className="form-label">Product Image</label>
-            <input type="file" accept="image/*" onChange={handleImageChange} />
-            {imagePreview && <img src={imagePreview} alt="preview" style={{ width: 140, height: 100, objectFit: 'cover', marginTop: 8 }} />}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-          <button className="btn btn-secondary" type="button" onClick={() => navigate('/products')}>Cancel</button>
-          <button className="btn btn-primary" type="submit" disabled={actionLoading}>{actionLoading ? 'Saving...' : 'Save Product'}</button>
-        </div>
-      </form>
     </div>
   );
 };

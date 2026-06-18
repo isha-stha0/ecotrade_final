@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { productAPI, adminAPI } from '../api/api';
 import { Loader2, Plus, Edit, Trash2, Tag, Database, Search, MoreHorizontal } from 'lucide-react';
 import { orderAPI } from '../api/api';
+import '../styles/Products.css';
 
 const Products = () => {
   const [products, setProducts] = useState([]);
@@ -269,59 +270,35 @@ const Products = () => {
       {/* Catalog Grid */}
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-          <Loader2 size={36} className="animate-spin" style={{ color: 'var(--primary)' }} />
+          <Loader2 size={36} style={{ color: 'var(--primary)' }} />
         </div>
       ) : (
         <div>
           {products.length > 0 ? (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: '1.5rem'
-            }}>
+            <div className="product-grid">
               {filteredProducts.map((p) => (
-                <div key={p._id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%' }}>
+                <div key={p._id} className="product-card">
                   
                   {/* Image Display */}
-                    <div style={{
-                    width: '100%',
-                    height: '180px',
-                    borderRadius: '8px',
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-color)',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--text-muted)',
-                    position: 'relative'
-                  }}>
+                  <div className="product-image">
                     {p.image_urls?.[0] || p.image ? (
                       <img 
                         src={p.image_urls?.[0] || p.image} 
                         alt={p.name} 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                       />
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
                         <Tag size={32} />
-                        <span style={{ fontSize: '0.8rem' }}>No image loaded</span>
+                        <span style={{ fontSize: '0.8rem' }}>No image</span>
                       </div>
                     )}
-                    
-                    {/* Category Label Overlay */}
-                    <div style={{
-                      position: 'absolute', top: '0.5rem', left: '0.5rem',
-                      background: 'var(--bg-sidebar)', padding: '0.25rem 0.6rem',
-                      borderRadius: '4px', border: '1px solid var(--border-color)',
-                      fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--primary)'
-                    }}>
+                    <div className="product-category-badge">
                       {p.category}
                     </div>
                   </div>
 
                   {/* Product Details */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flexGrow: 1 }}>
+                  <div className="product-details">
                     {quickEditMode ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <input className="form-control" value={editValues[p._id]?.name ?? p.name} onChange={(e) => handleInlineChange(p._id, 'name', e.target.value)} />
@@ -329,62 +306,60 @@ const Products = () => {
                       </div>
                     ) : (
                       <>
-                        <h3 style={{ fontSize: '1.1rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</h3>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', height: '40px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{p.description}</p>
+                        <h3 className="product-name">{p.name}</h3>
+                        <p className="product-description">{p.description}</p>
                       </>
                     )}
                     
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem' }}>
+                    <div className="product-price-section">
                       {quickEditMode ? (
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', width: '100%' }}>
                           <input className="form-control" style={{ width: 120 }} value={editValues[p._id]?.price ?? p.price} onChange={(e) => handleInlineChange(p._id, 'price', e.target.value)} />
                           <input className="form-control" style={{ width: 100 }} value={editValues[p._id]?.stock ?? p.stock_quantity ?? p.stock ?? 0} onChange={(e) => handleInlineChange(p._id, 'stock', e.target.value)} />
                         </div>
                       ) : (
                         <>
-                          <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)' }}>Rs. {p.price}</span>
-                          <span className={`badge badge-${(p.stock_quantity || p.stock) > 5 ? 'success' : 'pending'}`} style={{ fontSize: '0.7rem' }}>Stock: {p.stock_quantity || p.stock || 0}</span>
+                          <span className="product-price">Rs. {p.price}</span>
+                          <span className={`product-stock ${(p.stock_quantity || p.stock) <= 5 ? 'low' : ''}`}>Stock: {p.stock_quantity || p.stock || 0}</span>
                         </>
                       )}
                     </div>
 
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.25rem' }}>
+                    <div className="product-eco-info">
                       {p.madeFrom && <span>Material: <strong>{p.madeFrom}</strong></span>}
                       {p.ecoImpact && <span>Impact: <strong>{p.ecoImpact}</strong></span>}
                     </div>
                   </div>
 
                   {/* Actions footer */}
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
+                  <div className="product-actions">
                     {quickEditMode ? (
                       <>
-                        <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => saveInlineEdit(p._id)} disabled={inlineSavingId === p._id}>{inlineSavingId === p._id ? 'Saving...' : 'Save'}</button>
-                        <button className="btn btn-secondary" onClick={() => cancelInlineEdit(p._id)}>Cancel</button>
+                        <button className="btn btn-primary btn-save" onClick={() => saveInlineEdit(p._id)} disabled={inlineSavingId === p._id}>{inlineSavingId === p._id ? 'Saving...' : 'Save'}</button>
+                        <button className="btn btn-secondary btn-cancel" onClick={() => cancelInlineEdit(p._id)}>Cancel</button>
                       </>
                     ) : (
                       <>
                         <button 
                           onClick={() => handleOpenEditModal(p)}
-                          className="btn btn-secondary"
-                          style={{ flexGrow: 1, padding: '0.45rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                          className="btn btn-secondary btn-edit"
                           disabled={actionLoading}
                         >
-                          <Edit size={14} /> Edit
+                          <Edit size={14} style={{ marginRight: '0.25rem' }} /> Edit
+                        </button>
+                        <button 
+                          onClick={() => openSellModal(p)}
+                          className="btn btn-primary btn-sell"
+                        >
+                          Sell
                         </button>
                         <button 
                           onClick={() => handleDeleteProduct(p._id)}
-                          className="btn btn-danger"
-                          style={{ padding: '0.45rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          className="btn btn-danger btn-delete"
                           disabled={actionLoading}
+                          title="Delete product"
                         >
                           <Trash2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => openSellModal(p)}
-                          className="btn btn-primary"
-                          style={{ padding: '0.45rem', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '0.5rem' }}
-                        >
-                          Sell
                         </button>
                       </>
                     )}
@@ -394,7 +369,7 @@ const Products = () => {
               ))}
             </div>
           ) : (
-            <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+            <div className="products-empty card">
               No products available. Add one using the button above or seed the database sample catalog.
             </div>
           )}

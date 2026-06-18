@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
 require('dotenv').config();
+
+// Fix DNS resolution issues
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 const User    = require('./models/User');
 const Product = require('./models/Product');
@@ -17,7 +21,12 @@ const products = [
 
 async function seed() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      retryWrites: true,
+      w: 'majority',
+    });
     console.log('✅ Connected to MongoDB');
 
     const adminExists = await User.findOne({ email: 'admin@ecotrade.com' });

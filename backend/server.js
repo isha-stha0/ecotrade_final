@@ -2,7 +2,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const dns = require('dns');
 require('dotenv').config();
+
+// Fix DNS resolution issues
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 // Import Report Scheduler
 const reportScheduler = require('./services/reportScheduler');
@@ -31,7 +35,14 @@ app.use('/api/rewards',       require('./routes/rewards'));
 
 app.get('/api/health', (_, res) => res.json({ status: 'OK', time: new Date() }));
 
-mongoose.connect(process.env.MONGODB_URI)
+const mongoOptions = {
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
+  retryWrites: true,
+  w: 'majority',
+};
+
+mongoose.connect(process.env.MONGODB_URI, mongoOptions)
   .then(() => {
     console.log('✅ MongoDB Connected');
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'api_config.dart';
 
 class AppColors {
   static const bg          = Color(0xFF060D0A);
@@ -80,7 +81,5 @@ class AppTheme {
 }
 
 class AppConstants {
-  // Android emulator uses 10.0.2.2 to reach PC localhost
-  // Physical device: change to your PC's WiFi IP e.g. http://192.168.1.121:5000/api
-  static const String baseUrl = 'http://10.0.2.2:5000/api';
+  static String get baseUrl => ApiConfig.baseUrl;
 }

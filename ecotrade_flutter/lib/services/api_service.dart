@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_theme.dart';
@@ -29,40 +31,58 @@ class ApiService {
   }
 
   dynamic _handle(http.Response res) {
-    final body = jsonDecode(res.body);
+    dynamic body;
+    try {
+      body = res.body.isNotEmpty ? jsonDecode(res.body) : {};
+    } catch (_) {
+      throw ApiException('Invalid server response (${res.statusCode})');
+    }
     if (res.statusCode >= 200 && res.statusCode < 300) return body;
-    throw ApiException(body['message'] ?? 'Request failed (${res.statusCode})');
+    throw ApiException(body is Map ? (body['message'] ?? 'Request failed (${res.statusCode})') : 'Request failed (${res.statusCode})');
+  }
+
+  Future<http.Response> _send(Future<http.Response> Function() request) async {
+    try {
+      return await request().timeout(const Duration(seconds: 15));
+    } on SocketException {
+      throw ApiException('Cannot reach server at $base. Start the backend (npm run dev) and check ApiConfig in lib/utils/api_config.dart');
+    } on TimeoutException {
+      throw ApiException('Request timed out. Check your network and backend URL ($base)');
+    }
   }
 
   // ── Auth ────────────────────────────────────────────────────
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final res = await http.post(Uri.parse('$base/auth/login'),
+    final res = await _send(() => http.post(Uri.parse('$base/auth/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}));
+        body: jsonEncode({'email': email, 'password': password})));
     return _handle(res);
   }
 
   Future<Map<String, dynamic>> register(Map<String, dynamic> data) async {
-    final res = await http.post(Uri.parse('$base/auth/register'),
-        headers: {'Content-Type': 'application/json'}, body: jsonEncode(data));
+    final res = await _send(() => http.post(Uri.parse('$base/auth/register'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode(data)));
     return _handle(res);
   }
 
   Future<UserModel> getProfile() async {
-    final res = await http.get(Uri.parse('$base/auth/profile'), headers: await _headers);
+    final headers = await _headers;
+    final res = await _send(() => http.get(Uri.parse('$base/auth/profile'), headers: headers));
     return UserModel.fromJson(_handle(res));
   }
 
   Future<UserModel> updateProfile(Map<String, dynamic> data) async {
-    final res = await http.put(Uri.parse('$base/auth/profile'),
-        headers: await _headers, body: jsonEncode(data));
+    final headers = await _headers;
+    final res = await _send(() => http.put(Uri.parse('$base/auth/profile'),
+        headers: headers, body: jsonEncode(data)));
     return UserModel.fromJson(_handle(res));
   }
 
   Future<void> changePassword(String current, String newPass) async {
-    final res = await http.put(Uri.parse('$base/auth/change-password'),
-        headers: await _headers,
-        body: jsonEncode({'currentPassword': current, 'newPassword': newPass}));
+    final headers = await _headers;
+    final res = await _send(() => http.put(Uri.parse('$base/auth/change-password'),
+        headers: headers,
+        body: jsonEncode({'currentPassword': current, 'newPassword': newPass})));
     _handle(res);
   }
 
