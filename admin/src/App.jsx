@@ -15,6 +15,7 @@ import ProductForm from './pages/ProductForm';
 import Orders from './pages/Orders';
 import Reports from './pages/Reports';
 import Complaints from './pages/Complaints';
+import MapPage from './pages/MapPage';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
               <Route path="/products/new" element={<ProductForm mode="create" />} />
               <Route path="/products/:id/edit" element={<ProductForm mode="edit" />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/map" element={<MapPage />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/complaints" element={<Complaints />} />
             </Route>

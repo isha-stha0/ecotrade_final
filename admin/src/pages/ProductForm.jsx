@@ -67,12 +67,45 @@ const ProductForm = ({ mode = 'create' }) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
+    const MAX_IMAGES = 5;
+    
+    const errors = [];
+    const validFiles = [];
+    
     files.forEach(file => {
-      if (file.type.startsWith('image/')) {
+      // Check file type
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        errors.push(`${file.name}: Only PNG and JPG files are allowed`);
+        return;
+      }
+      
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        errors.push(`${file.name}: File size must be less than 5MB`);
+        return;
+      }
+      
+      validFiles.push(file);
+    });
+    
+    // Check total images limit
+    if (imageFiles.length + validFiles.length > MAX_IMAGES) {
+      errors.push(`Maximum ${MAX_IMAGES} images allowed. You're adding ${validFiles.length} files.`);
+      validFiles.length = MAX_IMAGES - imageFiles.length;
+    }
+    
+    if (errors.length > 0) {
+      alert('File validation errors:\n\n' + errors.join('\n'));
+    }
+    
+    if (validFiles.length > 0) {
+      validFiles.forEach(file => {
         setImageFiles(prev => [...prev, file]);
         setImagePreviews(prev => [...prev, URL.createObjectURL(file)]);
-      }
-    });
+      });
+    }
   };
 
   const removeImageAt = (index) => {
@@ -237,12 +270,12 @@ const ProductForm = ({ mode = 'create' }) => {
 
           {/* Row 5: Images */}
           <div className="form-group full-width">
-            <label>Product Images</label>
+            <label>Product Images (PNG, JPG only • Max 5MB each • Up to 5 images)</label>
             <div className="upload-box">
               <input
                 type="file"
                 multiple
-                accept="image/*"
+                accept=".png,.jpg,.jpeg,image/png,image/jpeg,image/jpg"
                 onChange={handleImageChange}
                 id="imageInput"
               />

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import '../../services/api_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/widgets.dart';
@@ -13,6 +15,12 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
   final _desc = TextEditingController(), _qty = TextEditingController(), _loc = TextEditingController();
   String _category = '', _unit = 'kg';
   bool _loading = false;
+  List<File> _selectedImages = [];
+  final _imagePicker = ImagePicker();
+  
+  static const _maxImageSize = 5 * 1024 * 1024; // 5MB
+  static const _allowedMimes = ['image/jpeg', 'image/png', 'image/jpg'];
+  static const _maxImages = 5;
 
   static const _cats = [
     {'v':'paper','e':'📄','l':'Paper','p':'10'},
@@ -29,16 +37,92 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
     return (int.parse(cat['p']!) * (double.tryParse(_qty.text) ?? 0)).floor();
   }
 
+  Future<void> _pickImage() async {
+    try {
+      final pickedFile = await _imagePicker.pickImage(source: ImageSource.gallery);
+      
+      if (pickedFile == null) return;
+      
+      final file = File(pickedFile.path);
+      final bytes = await file.length();
+      
+      // Validate file size
+      if (bytes > _maxImageSize) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Image size must be less than 5MB'), backgroundColor: AppColors.red)
+          );
+        }
+        return;
+      }
+      
+      // Validate file type
+      final mimeType = _getMimeType(pickedFile.path);
+      if (!_allowedMimes.contains(mimeType)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Only PNG and JPG files are allowed'), backgroundColor: AppColors.red)
+          );
+        }
+        return;
+      }
+      
+      // Check image limit
+      if (_selectedImages.length >= _maxImages) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Maximum $_maxImages images allowed'), backgroundColor: AppColors.red)
+          );
+        }
+        return;
+      }
+      
+      setState(() => _selectedImages.add(file));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e'), backgroundColor: AppColors.red)
+        );
+      }
+    }
+  }
+  
+  String _getMimeType(String filepath) {
+    final ext = filepath.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+  
+  void _removeImage(int index) {
+    setState(() => _selectedImages.removeAt(index));
+  }
+
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     if (_category.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a category'), backgroundColor: AppColors.red)); return; }
     setState(() => _loading = true);
     try {
-      await ApiService().submitScrap({'category': _category, 'description': _desc.text, 'quantity': double.parse(_qty.text), 'unit': _unit, 'location': _loc.text});
+      await ApiService().submitScrap(
+        {
+          'category': _category, 
+          'description': _desc.text, 
+          'quantity': double.parse(_qty.text), 
+          'unit': _unit, 
+          'location': _loc.text
+        },
+        photos: _selectedImages.isNotEmpty ? _selectedImages : null,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Scrap submitted! Awaiting approval 🌱'), backgroundColor: AppColors.green600));
         _desc.clear(); _qty.clear(); _loc.clear();
-        setState(() { _category = ''; });
+        setState(() { _category = ''; _selectedImages = []; });
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
@@ -119,6 +203,57 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
             Icon(Icons.info_outline, color: AppColors.blue, size: 15), SizedBox(width: 8),
             Expanded(child: Text('Our team will contact you for collection. EcoPoints are awarded after verification.', style: TextStyle(fontSize: 12, color: AppColors.textMuted, height: 1.5))),
           ])),
+        const SizedBox(height: 20),
+        const Text('Photos (PNG, JPG • Max 5MB each • Up to 5 images)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted, letterSpacing: 0.04)),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _pickImage,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.green500.withOpacity(0.3), width: 2),
+              borderRadius: BorderRadius.circular(12),
+              color: AppColors.green500.withOpacity(0.04),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.image_outlined, size: 32, color: AppColors.green500),
+                  const SizedBox(height: 8),
+                  Text('Tap to add photos (${_selectedImages.length}/$_maxImages)', style: TextStyle(fontSize: 13, color: AppColors.green500, fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_selectedImages.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
+            itemCount: _selectedImages.length,
+            itemBuilder: (ctx, idx) => Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(_selectedImages[idx], fit: BoxFit.cover),
+                ),
+                Positioned(
+                  top: 4, right: 4,
+                  child: GestureDetector(
+                    onTap: () => _removeImage(idx),
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(color: AppColors.red.withOpacity(0.8), shape: BoxShape.circle),
+                      child: const Icon(Icons.close, size: 16, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         EcoButton(text: 'Submit Scrap Request', icon: Icons.recycling, loading: _loading, width: double.infinity, onPressed: _submit),
         const SizedBox(height: 40),
