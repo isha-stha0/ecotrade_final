@@ -42,15 +42,23 @@ class _HomeScreenState extends State<HomeScreen> {
               background: Container(
                 padding: const EdgeInsets.fromLTRB(20, 56, 20, 0),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.center, children: [
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text('Hey, ${user?.name.split(' ').first ?? 'there'} 👋',
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                    const SizedBox(height: 2),
-                    const Text('Track your eco impact', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
-                  ]),
-                  Container(width: 42, height: 42,
-                    decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.green600, AppColors.green700]), borderRadius: BorderRadius.circular(12)),
-                    child: Center(child: Text(user?.name[0].toUpperCase() ?? 'U', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18)))),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Text('Hey, ${user?.name.split(' ').first ?? 'there'} 👋',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
+                      const Text('Track your eco impact', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                    ]),
+                  ),
+                  const SizedBox(width: 12),
+                  Image.asset(
+                    'assets/images/ecotrade_logo.jpg',
+                    width: 92,
+                    height: 82,
+                    fit: BoxFit.contain,
+                  ),
                 ]),
               ),
             ),

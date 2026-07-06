@@ -208,34 +208,97 @@ class _OrdersTab extends StatefulWidget {
 
 class _OrdersTabState extends State<_OrdersTab> {
   List<dynamic> _orders = [];
+  List<UserModel> _collectors = [];
   bool _loading = true;
 
   @override void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     try {
-      final d = await ApiService().getAllOrders();
-      if (mounted) setState(() { _orders = d['orders'] ?? []; _loading = false; });
-    } catch (_) { if (mounted) setState(() => _loading = false); }
+      final results = await Future.wait([
+        ApiService().getAllOrders(),
+        ApiService().getUsers(role: 'collector'),
+      ]);
+      final d = results[0];
+      final users = results[1];
+      if (mounted) {
+        setState(() {
+          _orders = d['orders'] ?? [];
+          _collectors = (users['users'] as List? ?? []).map((e) => UserModel.fromJson(e)).toList();
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _assignCollector(String orderId, String collectorId) async {
+    try {
+      await ApiService().assignOrderCollector(orderId, collectorId);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Collector assigned for delivery'), backgroundColor: AppColors.green600),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const EcoLoading();
     if (_orders.isEmpty) return const EmptyState(emoji: '📦', title: 'No orders yet', subtitle: 'Orders will appear here');
-    return ListView.builder(padding: const EdgeInsets.all(16), itemCount: _orders.length,
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: AppColors.green500,
+      child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: _orders.length,
       itemBuilder: (_, i) {
         final o = _orders[i];
         final id = o['_id'] as String;
+        final shipping = o['shippingAddress'] ?? o['shipping_address'];
+        final deliveryCollector = o['deliveryCollector'] ?? o['delivery_collector_id'];
+        final assignedCollectorId = deliveryCollector is Map ? (deliveryCollector['_id'] ?? deliveryCollector['id'])?.toString() : deliveryCollector?.toString();
+        final customer = o['user'] ?? o['user_id'];
+        final customerName = customer is Map ? (customer['full_name'] ?? customer['name'] ?? 'N/A') : 'N/A';
+        final address = shipping is Map
+            ? [shipping['street'], shipping['city']].where((e) => e != null && e.toString().isNotEmpty).join(', ')
+            : shipping?.toString() ?? 'No address';
         return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
-          child: Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('#${id.substring(id.length-8).toUpperCase()}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary, fontFamily: 'monospace')),
-              Text('${o['user']?['name'] ?? 'N/A'} • NPR ${o['totalAmount']}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-            ])),
-            StatusBadge(o['orderStatus'] ?? 'placed'),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('#${id.substring(id.length-8).toUpperCase()}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary, fontFamily: 'monospace')),
+                Text('$customerName • NPR ${o['totalAmount'] ?? o['total_amount']}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              ])),
+              StatusBadge(o['orderStatus'] ?? o['order_status'] ?? 'placed'),
+            ]),
+            const SizedBox(height: 8),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.location_on_outlined, size: 16, color: AppColors.green400),
+              const SizedBox(width: 6),
+              Expanded(child: Text(address, style: const TextStyle(fontSize: 12, color: AppColors.textMuted))),
+            ]),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: assignedCollectorId != null && _collectors.any((c) => c.id == assignedCollectorId) ? assignedCollectorId : null,
+              decoration: const InputDecoration(labelText: 'Delivery collector'),
+              items: _collectors
+                  .map((c) => DropdownMenuItem(value: c.id, child: Text('${c.name}${c.phone != null ? ' - ${c.phone}' : ''}')))
+                  .toList(),
+              onChanged: (collectorId) {
+                if (collectorId != null) _assignCollector(id, collectorId);
+              },
+            ),
           ]));
-      });
+      }),
+    );
   }
 }

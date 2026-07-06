@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_provider.dart';
-import '../../utils/app_theme.dart';
-import '../../widgets/widgets.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onRegister;
@@ -58,32 +56,13 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // App icon
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [darkGreen, lightGreen],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: darkGreen.withOpacity(0.3),
-                        blurRadius: 30,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.eco_rounded,
-                    color: Colors.white,
-                    size: 40,
-                  ),
+                Image.asset(
+                  'assets/images/ecotrade_logo.jpg',
+                  width: 280,
+                  height: 230,
+                  fit: BoxFit.contain,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
                 const Text(
                   'Welcome Back',
                   style: TextStyle(

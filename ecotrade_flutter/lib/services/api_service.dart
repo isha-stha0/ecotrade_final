@@ -41,7 +41,7 @@ class ApiService {
     throw ApiException(body is Map ? (body['message'] ?? 'Request failed (${res.statusCode})') : 'Request failed (${res.statusCode})');
   }
 
-  Future<http.Response> _send(Future<http.Response> Function() request) async {
+  Future<T> _send<T>(Future<T> Function() request) async {
     try {
       return await request().timeout(const Duration(seconds: 15));
     } on SocketException {
@@ -100,9 +100,11 @@ class ApiService {
     // Use multipart form data for file uploads
     final request = http.MultipartRequest('POST', Uri.parse('$base/scrap'));
     
-    // Add headers
+    // Add headers. MultipartRequest sets its own content-type boundary.
     headers.forEach((key, value) {
-      request.headers[key] = value;
+      if (key.toLowerCase() != 'content-type') {
+        request.headers[key] = value;
+      }
     });
     
     // Add form fields
@@ -133,10 +135,14 @@ class ApiService {
     return _handle(res);
   }
 
-  Future<void> updateScrapStatus(String id, String status, {String? notes}) async {
+  Future<void> updateScrapStatus(String id, String status, {String? notes, String? collectorId}) async {
     final res = await http.put(Uri.parse('$base/scrap/$id/status'),
         headers: await _headers,
-        body: jsonEncode({'status': status, if (notes != null) 'adminNotes': notes}));
+        body: jsonEncode({
+          'status': status,
+          if (notes != null) 'adminNotes': notes,
+          if (collectorId != null) 'collector_id': collectorId,
+        }));
     _handle(res);
   }
 
@@ -148,7 +154,21 @@ class ApiService {
     if (sort != null && sort.isNotEmpty) params['sort'] = sort;
     final uri = Uri.parse('$base/products').replace(queryParameters: params);
     final res = await http.get(uri, headers: await _headers);
-    return (_handle(res)['products'] as List).map((e) => ProductModel.fromJson(e)).toList();
+    final body = _handle(res);
+    final products = body is Map ? body['products'] as List? ?? [] : body as List? ?? [];
+    return products.map((e) => ProductModel.fromJson(e)).toList();
+  }
+
+  Future<List<String>> getProductCategories() async {
+    final res = await http.get(Uri.parse('$base/products/categories'), headers: await _headers);
+    final body = _handle(res);
+    final categories = body is List ? body : body['categories'] as List? ?? [];
+    return categories
+        .map((e) => e is Map ? e['name']?.toString() : e.toString())
+        .whereType<String>()
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList();
   }
 
   Future<ProductModel> getProduct(String id) async {
@@ -180,6 +200,24 @@ class ApiService {
     return OrderModel.fromJson(_handle(res));
   }
 
+  Future<Map<String, dynamic>> initiateEsewaPayment(Map<String, dynamic> data) async {
+    final res = await http.post(Uri.parse('$base/orders/esewa/initiate'),
+        headers: await _headers, body: jsonEncode(data));
+    return _handle(res);
+  }
+
+  Future<Map<String, dynamic>> verifyEsewaPayment(Map<String, dynamic> data) async {
+    final res = await http.post(Uri.parse('$base/orders/esewa/verify'),
+        headers: await _headers, body: jsonEncode(data));
+    return _handle(res);
+  }
+
+  Future<Map<String, dynamic>> handleEsewaFailure(Map<String, dynamic> data) async {
+    final res = await http.post(Uri.parse('$base/orders/esewa/failure'),
+        headers: await _headers, body: jsonEncode(data));
+    return _handle(res);
+  }
+
   Future<List<OrderModel>> getMyOrders() async {
     final res = await http.get(Uri.parse('$base/orders/my'), headers: await _headers);
     return (_handle(res) as List).map((e) => OrderModel.fromJson(e)).toList();
@@ -193,6 +231,23 @@ class ApiService {
 
   Future<void> updateOrderStatus(String id, String status) async {
     final res = await http.put(Uri.parse('$base/orders/$id/status'),
+        headers: await _headers, body: jsonEncode({'orderStatus': status}));
+    _handle(res);
+  }
+
+  Future<Map<String, dynamic>> getMyDeliveries() async {
+    final res = await http.get(Uri.parse('$base/orders/deliveries/my'), headers: await _headers);
+    return _handle(res);
+  }
+
+  Future<void> assignOrderCollector(String orderId, String collectorId) async {
+    final res = await http.put(Uri.parse('$base/orders/$orderId/assign-collector'),
+        headers: await _headers, body: jsonEncode({'collectorId': collectorId}));
+    _handle(res);
+  }
+
+  Future<void> updateDeliveryStatus(String orderId, String status) async {
+    final res = await http.put(Uri.parse('$base/orders/$orderId/delivery-status'),
         headers: await _headers, body: jsonEncode({'orderStatus': status}));
     _handle(res);
   }

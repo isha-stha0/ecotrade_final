@@ -26,7 +26,7 @@ class CartScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
                   child: Row(children: [
-                    Container(width: 56, height: 56, decoration: BoxDecoration(color: AppColors.green500.withOpacity(0.08), borderRadius: BorderRadius.circular(10)), child: const Center(child: Text('♻️', style: TextStyle(fontSize: 26)))),
+                    _CartProductImage(imageUrl: item.product.imageUrl),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(item.product.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
@@ -59,6 +59,38 @@ class CartScreen extends StatelessWidget {
               ]),
             ),
           ]),
+    );
+  }
+}
+
+class _CartProductImage extends StatelessWidget {
+  final String? imageUrl;
+
+  const _CartProductImage({this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: AppColors.green500.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Center(child: Text('♻️', style: TextStyle(fontSize: 26))),
+    );
+
+    if (imageUrl == null) return fallback;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.network(
+        imageUrl!,
+        width: 56,
+        height: 56,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback,
+      ),
     );
   }
 }

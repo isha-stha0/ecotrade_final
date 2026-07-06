@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/api_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/widgets.dart';
+import 'scrap_map_screen.dart';
 
 class SubmitScrapScreen extends StatefulWidget {
   const SubmitScrapScreen({super.key});
@@ -12,8 +13,9 @@ class SubmitScrapScreen extends StatefulWidget {
 
 class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
   final _form = GlobalKey<FormState>();
-  final _desc = TextEditingController(), _qty = TextEditingController(), _loc = TextEditingController();
+  final _desc = TextEditingController(), _qty = TextEditingController();
   String _category = '', _unit = 'kg';
+  ScrapMapSelection? _pickupLocation;
   bool _loading = false;
   List<File> _selectedImages = [];
   final _imagePicker = ImagePicker();
@@ -104,9 +106,26 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
     setState(() => _selectedImages.removeAt(index));
   }
 
+  Future<void> _pickPickupLocation() async {
+    final selection = await Navigator.of(context).push<ScrapMapSelection>(
+      MaterialPageRoute(
+        builder: (_) => ScrapMapScreen(
+          pickerMode: true,
+          initialLat: _pickupLocation?.lat,
+          initialLng: _pickupLocation?.lng,
+        ),
+      ),
+    );
+
+    if (selection != null && mounted) {
+      setState(() => _pickupLocation = selection);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     if (_category.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a category'), backgroundColor: AppColors.red)); return; }
+    if (_pickupLocation == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please pin your pickup location on the map'), backgroundColor: AppColors.red)); return; }
     setState(() => _loading = true);
     try {
       await ApiService().submitScrap(
@@ -115,14 +134,16 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
           'description': _desc.text, 
           'quantity': double.parse(_qty.text), 
           'unit': _unit, 
-          'location': _loc.text
+          'location': _pickupLocation!.label,
+          'lat': _pickupLocation!.lat,
+          'lng': _pickupLocation!.lng,
         },
         photos: _selectedImages.isNotEmpty ? _selectedImages : null,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Scrap submitted! Awaiting approval 🌱'), backgroundColor: AppColors.green600));
-        _desc.clear(); _qty.clear(); _loc.clear();
-        setState(() { _category = ''; _selectedImages = []; });
+        _desc.clear(); _qty.clear();
+        setState(() { _category = ''; _pickupLocation = null; _selectedImages = []; });
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
@@ -182,8 +203,37 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
           ])),
         ]),
         const SizedBox(height: 14),
-        EcoTextField(label: 'Pickup Location', hint: 'Your address or area', controller: _loc,
-          prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.textMuted, size: 20)),
+        const Text('Pickup Location *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted, letterSpacing: 0.04)),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _pickPickupLocation,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.bgCard,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _pickupLocation == null ? AppColors.border : AppColors.green500.withOpacity(0.45)),
+            ),
+            child: Row(children: [
+              Icon(Icons.map_outlined, color: _pickupLocation == null ? AppColors.textMuted : AppColors.green400, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                    _pickupLocation == null ? 'Tap to pin pickup address on map' : 'Pickup address pinned',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    _pickupLocation?.label ?? 'Collector will use this pin for pickup',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  ),
+                ]),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.textDim),
+            ]),
+          ),
+        ),
         const SizedBox(height: 16),
         if (_pts > 0) Container(
           padding: const EdgeInsets.all(14),

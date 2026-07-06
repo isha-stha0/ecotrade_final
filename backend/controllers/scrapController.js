@@ -85,6 +85,9 @@ exports.updateScrapStatus = async (req, res) => {
     if (adminNotes) scrap.admin_notes = adminNotes;
     if (quantity_actual !== undefined) scrap.quantity_actual = parseFloat(quantity_actual);
     if (collector_id) scrap.collector_id = collector_id;
+    if (req.user.role === 'collector' && ['assigned', 'collected', 'completed'].includes(status)) {
+      scrap.collector_id = req.user._id;
+    }
 
     if (status === 'approved') scrap.approved_at = new Date();
     if (status === 'assigned') scrap.assigned_at = new Date();

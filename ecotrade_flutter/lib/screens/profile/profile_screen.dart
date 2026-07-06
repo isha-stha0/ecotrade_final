@@ -149,7 +149,11 @@ class ProfileScreen extends StatelessWidget {
   void _showAbout(BuildContext context) {
     showDialog(context: context, builder: (_) => AlertDialog(
       backgroundColor: AppColors.bgCard, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Row(children: [Icon(Icons.eco_rounded, color: AppColors.green400), SizedBox(width: 8), Text('EcoTrade', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700))]),
+      title: Row(children: [
+        Image.asset('assets/images/ecotrade_logo.jpg', width: 48, height: 42, fit: BoxFit.contain),
+        const SizedBox(width: 8),
+        const Text('EcoTrade', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+      ]),
       content: const Text('Smart Scrap-to-Product Platform\n\nDeveloper: Isha Shrestha\nID: NP069784\n\nBuilt with Flutter + Node.js + MongoDB\n\nVersion 1.0.0', style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.6)),
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close', style: TextStyle(color: AppColors.green400)))],
     ));

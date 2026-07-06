@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../services/cart_provider.dart';
 import '../../utils/app_theme.dart';
-import '../../widgets/widgets.dart';
 import 'cart_screen.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -18,7 +17,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _quantity = 1;
 
   String get _emoji {
-    final cat = widget.product.category?.toLowerCase() ?? '';
+    final cat = widget.product.category.toLowerCase();
     if (cat.contains('stationery')) return '📓';
     if (cat.contains('bag')) return '👜';
     if (cat.contains('home decor') || cat.contains('decor')) return '🏺';
@@ -28,14 +27,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return '♻️';
   }
 
-  String get _name => widget.product.name ?? 'Product';
-  String get _category => widget.product.category ?? 'Uncategorized';
+  String get _name => widget.product.name;
+  String get _category => widget.product.category.isEmpty ? 'Uncategorized' : widget.product.category;
   String get _description =>
-      widget.product.description ?? 'No description available.';
+      widget.product.description.isEmpty ? 'No description available.' : widget.product.description;
   String get _madeFrom => widget.product.madeFrom ?? '';
   String get _ecoImpact => widget.product.ecoImpact ?? '';
-  double get _price => widget.product.price ?? 0;
-  int get _stock => widget.product.stock ?? 0;
+  double get _price => widget.product.price;
+  int get _stock => widget.product.stock;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +67,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Emoji header (no image)
             Container(
               height: 200,
               width: double.infinity,
@@ -82,9 +80,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   end: Alignment.bottomCenter,
                 ),
               ),
-              child: Center(
-                child: Text(_emoji, style: const TextStyle(fontSize: 80)),
-              ),
+              child: widget.product.imageUrl == null
+                  ? Center(child: Text(_emoji, style: const TextStyle(fontSize: 80)))
+                  : Image.network(
+                      widget.product.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Center(child: Text(_emoji, style: const TextStyle(fontSize: 80))),
+                    ),
             ),
             Padding(
               padding: const EdgeInsets.all(20),
@@ -217,8 +219,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               icon: const Icon(Icons.add,
                                   size: 18, color: AppColors.darkGreen),
                               onPressed: () {
-                                if (_quantity < _stock)
+                                if (_quantity < _stock) {
                                   setState(() => _quantity++);
+                                }
                               },
                             ),
                           ],

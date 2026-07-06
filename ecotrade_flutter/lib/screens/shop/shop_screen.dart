@@ -5,7 +5,7 @@ import '../../services/cart_provider.dart';
 import '../../models/models.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/widgets.dart';
-import 'product_detail_screen.dart';
+import 'cart_screen.dart';
 import 'product_detail_screen.dart';
 
 class ShopScreen extends StatefulWidget {
@@ -18,9 +18,11 @@ class ShopScreen extends StatefulWidget {
 class _ShopScreenState extends State<ShopScreen> {
   List<ProductModel> _products = [];
   bool _loading = true;
-  String _search = '', _category = '', _sort = '';
+  String? _error;
+  String _search = '', _category = '';
+  final String _sort = '';
   final _ctrl = TextEditingController();
-  final _categories = [
+  List<String> _categories = [
     'All',
     'Stationery',
     'Bags',
@@ -33,7 +35,17 @@ class _ShopScreenState extends State<ShopScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     _load();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final categories = await ApiService().getProductCategories();
+      if (mounted && categories.isNotEmpty) {
+        setState(() => _categories = ['All', ...categories]);
+      }
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -44,13 +56,20 @@ class _ShopScreenState extends State<ShopScreen> {
         category: _category,
         sort: _sort,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _products = p;
           _loading = false;
+          _error = null;
         });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
+      }
     }
   }
 
@@ -79,6 +98,20 @@ class _ShopScreenState extends State<ShopScreen> {
         ),
         elevation: 0,
         backgroundColor: Colors.white,
+        actions: [
+          Consumer<CartProvider>(
+            builder: (context, cart, _) => IconButton(
+              tooltip: 'Cart',
+              icon: Badge(
+                isLabelVisible: cart.count > 0,
+                label: Text('${cart.count}'),
+                child: const Icon(Icons.shopping_cart_outlined, color: AppColors.darkGreen),
+              ),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(64),
           child: Padding(
@@ -186,6 +219,14 @@ class _ShopScreenState extends State<ShopScreen> {
           Expanded(
             child: _loading
                 ? const EcoLoading()
+                : _error != null
+                    ? EmptyState(
+                        emoji: '⚠️',
+                        title: 'Could not load backend products',
+                        subtitle: _error!,
+                        buttonLabel: 'Retry',
+                        onButton: _load,
+                      )
                 : _products.isEmpty
                     ? const EmptyState(
                         emoji: '🛍️',

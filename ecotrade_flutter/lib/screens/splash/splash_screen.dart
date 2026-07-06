@@ -50,13 +50,15 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
             child: SizedBox(width: 150, height: 150, child: Stack(alignment: Alignment.center, children: [
               Transform.rotate(angle: _spin.value * 6.2832,
                 child: CustomPaint(size: const Size(140, 140), painter: _ArcPainter())),
-              Container(width: 96, height: 96,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [AppColors.green600, AppColors.green700]),
-                  borderRadius: BorderRadius.circular(26),
-                  boxShadow: [BoxShadow(color: AppColors.green500.withOpacity(0.4), blurRadius: 28, offset: const Offset(0,8))],
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Image.asset(
+                  'assets/images/ecotrade_logo.jpg',
+                  width: 118,
+                  height: 104,
+                  fit: BoxFit.contain,
                 ),
-                child: const Icon(Icons.eco_rounded, color: Colors.white, size: 48)),
+              ),
             ])),
           ),
         ),
