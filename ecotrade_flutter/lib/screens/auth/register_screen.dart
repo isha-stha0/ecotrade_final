@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_provider.dart';
-import '../../utils/app_theme.dart';
-import '../../widgets/widgets.dart';
 
 class RegisterScreen extends StatefulWidget {
   final VoidCallback onLogin;
@@ -74,32 +72,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // App icon with new gradient
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [darkGreen, lightGreen],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [
-                      BoxShadow(
-                        color: darkGreen.withOpacity(0.3),
-                        blurRadius: 28,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.eco_rounded,
-                    color: Colors.white,
-                    size: 34,
-                  ),
+                Image.asset(
+                  'assets/images/ecotrade_logo.jpg',
+                  width: 250,
+                  height: 190,
+                  fit: BoxFit.contain,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 // Headings
                 const Text(
                   'Join EcoTrade',
@@ -163,24 +142,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Row(
+                Column(
                   children: [
-                    Expanded(
-                      child: _RoleCard(
-                        label: '🛍️ Buy Products',
-                        desc: 'Shop eco items',
-                        isSelected: _role == 'customer',
-                        onTap: () => setState(() => _role = 'customer'),
-                      ),
+                    _RoleCard(
+                      label: 'Customer',
+                      desc: 'Buy eco products and submit scrap for EcoPoints',
+                      icon: Icons.recycling_outlined,
+                      isSelected: _role == 'customer',
+                      onTap: () => setState(() => _role = 'customer'),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _RoleCard(
-                        label: '♻️ Submit Scrap',
-                        desc: 'Earn EcoPoints',
-                        isSelected: _role == 'contributor',
-                        onTap: () => setState(() => _role = 'contributor'),
-                      ),
+                    const SizedBox(height: 10),
+                    _RoleCard(
+                      label: 'Scrap Collector',
+                      desc: 'Create a collector account for scrap pickup work',
+                      icon: Icons.local_shipping_outlined,
+                      isSelected: _role == 'collector',
+                      onTap: () => setState(() => _role = 'collector'),
                     ),
                   ],
                 ),
@@ -337,12 +314,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 // Improved role card with modern look
 class _RoleCard extends StatelessWidget {
   final String label, desc;
+  final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _RoleCard({
     required this.label,
     required this.desc,
+    required this.icon,
     required this.isSelected,
     required this.onTap,
   });
@@ -353,7 +332,7 @@ class _RoleCard extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
         decoration: BoxDecoration(
           color: isSelected ? Colors.grey.shade100 : Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -373,28 +352,48 @@ class _RoleCard extends StatelessWidget {
                 ]
               : null,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color:
-                    isSelected ? const Color(0xFF05401C) : Colors.grey.shade700,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              desc,
-              style: TextStyle(
-                fontSize: 11,
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
                 color: isSelected
-                    ? const Color(0xFF05401C).withOpacity(0.7)
-                    : Colors.grey.shade500,
+                    ? const Color(0xFF44A81D).withOpacity(0.12)
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: isSelected ? const Color(0xFF05401C) : Colors.grey.shade600,
+                size: 20,
               ),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? const Color(0xFF05401C) : Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  desc,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isSelected
+                        ? const Color(0xFF05401C).withOpacity(0.7)
+                        : Colors.grey.shade500,
+                  ),
+                ),
+              ]),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_circle_rounded, color: Color(0xFF44A81D), size: 20),
           ],
         ),
       ),

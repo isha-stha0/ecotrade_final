@@ -4,7 +4,37 @@ const User = require('../models/User');
 const RewardTransaction = require('../models/RewardTransaction');
 const RewardRedemption = require('../models/RewardRedemption');
 const { sendEmail } = require('../utils/mailer');
-const { generatePaymentURL, processPaymentCallback } = require('../services/esewaService');
+const { generatePaymentURL, processPaymentCallback, ESEWA_CONFIG } = require('../services/esewaService');
+
+const decodeEsewaData = (encoded) => {
+  if (!encoded) return null;
+  const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
+  const json = Buffer.from(normalized, 'base64').toString('utf8');
+  return JSON.parse(json);
+};
+
+const verifyEsewaSignature = (data) => {
+  if (!data?.signature || !data?.signed_field_names) return false;
+  const signedFields = data.signed_field_names.split(',');
+  const signedPayload = signedFields.map((field) => `${field}=${data[field]}`).join(',');
+  const expected = require('crypto')
+    .createHmac('sha256', ESEWA_CONFIG.SECRET_KEY)
+    .update(signedPayload)
+    .digest('base64');
+  return expected === data.signature;
+};
+
+const orderIdFromTransaction = (transactionUUID) => {
+  const match = transactionUUID?.match(/^ECOTRADE-(.+)-\d+$/);
+  return match?.[1] || null;
+};
+
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
 
 exports.placeOrder = async (req, res) => {
   try {
@@ -45,13 +75,17 @@ exports.placeOrder = async (req, res) => {
       });
     }
 
-    const appliedDiscount = discount_amount || (points_used ? points_used : 0);
+    const requestedPoints = Math.floor((points_used || 0) / 500) * 500;
+    const maxPointsForOrder = Math.floor(subtotal_amount / 10) * 500;
+    const effectivePointsUsed = Math.min(requestedPoints, maxPointsForOrder);
+    const appliedDiscount = (effectivePointsUsed / 500) * 10;
     const total_amount = Math.max(0, subtotal_amount - appliedDiscount);
 
     const order = await Order.create({
       user_id: req.user._id,
       items: resolvedItems,
       subtotal_amount,
+      points_used: effectivePointsUsed,
       discount_amount: appliedDiscount,
       total_amount,
       payment_method: paymentMethod || 'cash_on_delivery',
@@ -61,23 +95,23 @@ exports.placeOrder = async (req, res) => {
       payment_status: 'pending',
     });
 
-    if (points_used && points_used > 0) {
+    if (effectivePointsUsed > 0) {
       const updatedUser = await User.findByIdAndUpdate(
         req.user._id, 
-        { $inc: { reward_points: -points_used } }, 
+        { $inc: { reward_points: -effectivePointsUsed } }, 
         { new: true }
       );
 
       await RewardRedemption.create({
         user_id: req.user._id,
         order_id: order._id,
-        points_used,
+        points_used: effectivePointsUsed,
         discount_amount: appliedDiscount
       });
 
       await RewardTransaction.create({
         user_id: req.user._id,
-        points: -points_used,
+        points: -effectivePointsUsed,
         reason: 'order_discount',
         reference_type: 'order',
         reference_id: order._id,
@@ -96,7 +130,7 @@ exports.placeOrder = async (req, res) => {
         ${resolvedItems.map(item => `<li>Product ID: ${item.product_id} x ${item.quantity} - Rs. ${item.subtotal}</li>`).join('')}
       </ul>
       <p>Subtotal: Rs. ${subtotal_amount}</p>
-      <p>Discount: Rs. ${appliedDiscount} (${points_used || 0} points used)</p>
+      <p>Discount: Rs. ${appliedDiscount} (${effectivePointsUsed} points used)</p>
       <p><strong>Total Amount: Rs. ${total_amount}</strong></p>
       <p>Shipping Address: ${typeof shippingAddress === 'object' ? JSON.stringify(shippingAddress) : shippingAddress}</p>
       <p>Payment Method: ${paymentMethod || 'cash_on_delivery'}</p>
@@ -129,10 +163,76 @@ exports.getAllOrders = async (req, res) => {
     const { status } = req.query;
     const filter = status ? { order_status: status } : {};
     const orders = await Order.find(filter)
-      .populate('user_id', 'full_name email')
+      .populate('user_id', 'full_name email phone')
+      .populate('delivery_collector_id', 'full_name phone')
       .populate('items.product_id', 'name price')
       .sort('-createdAt');
     res.json({ orders, total: orders.length });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+exports.getMyDeliveries = async (req, res) => {
+  try {
+    if (req.user.role !== 'collector') {
+      return res.status(403).json({ message: 'Collector only' });
+    }
+    const orders = await Order.find({ delivery_collector_id: req.user._id })
+      .populate('user_id', 'full_name email phone')
+      .populate('items.product_id', 'name price image_urls')
+      .sort('-createdAt');
+    res.json({ orders, total: orders.length });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+exports.assignDeliveryCollector = async (req, res) => {
+  try {
+    const { collectorId } = req.body;
+    if (!collectorId) return res.status(400).json({ message: 'collectorId is required' });
+
+    const collector = await User.findById(collectorId);
+    if (!collector || collector.role !== 'collector') {
+      return res.status(400).json({ message: 'Selected user is not a collector' });
+    }
+
+    const order = await Order.findByIdAndUpdate(
+      req.params.id,
+      {
+        delivery_collector_id: collectorId,
+        assigned_for_delivery_at: new Date(),
+        order_status: 'confirmed',
+      },
+      { new: true }
+    )
+      .populate('user_id', 'full_name email phone')
+      .populate('delivery_collector_id', 'full_name phone')
+      .populate('items.product_id', 'name price');
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    res.json(order);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+exports.updateMyDeliveryStatus = async (req, res) => {
+  try {
+    if (req.user.role !== 'collector') {
+      return res.status(403).json({ message: 'Collector only' });
+    }
+    const { orderStatus } = req.body;
+    if (!['shipped', 'delivered'].includes(orderStatus)) {
+      return res.status(400).json({ message: 'Invalid delivery status' });
+    }
+
+    const update = { order_status: orderStatus };
+    if (orderStatus === 'shipped') update.shipped_at = new Date();
+    if (orderStatus === 'delivered') update.delivered_at = new Date();
+
+    const order = await Order.findOneAndUpdate(
+      { _id: req.params.id, delivery_collector_id: req.user._id },
+      update,
+      { new: true }
+    );
+    if (!order) return res.status(404).json({ message: 'Assigned order not found' });
+    res.json(order);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
@@ -194,7 +294,10 @@ exports.initiateEsewaPayment = async (req, res) => {
       });
     }
 
-    const appliedDiscount = discount_amount || (points_used ? points_used : 0);
+    const requestedPoints = Math.floor((points_used || 0) / 500) * 500;
+    const maxPointsForOrder = Math.floor(subtotal_amount / 10) * 500;
+    const effectivePointsUsed = Math.min(requestedPoints, maxPointsForOrder);
+    const appliedDiscount = (effectivePointsUsed / 500) * 10;
     const total_amount = Math.max(0, subtotal_amount - appliedDiscount);
 
     // Create pending order
@@ -202,6 +305,7 @@ exports.initiateEsewaPayment = async (req, res) => {
       user_id: req.user._id,
       items: resolvedItems,
       subtotal_amount,
+      points_used: effectivePointsUsed,
       discount_amount: appliedDiscount,
       total_amount,
       payment_method: 'esewa',
@@ -220,9 +324,11 @@ exports.initiateEsewaPayment = async (req, res) => {
       customerPhone: req.user.phone,
     });
 
+    const paymentUrl = `${req.protocol}://${req.get('host')}/api/orders/esewa/pay/${order._id}?transaction_uuid=${encodeURIComponent(paymentData.transactionUUID)}`;
+
     res.json({
       order: order,
-      payment_url: paymentData.url,
+      payment_url: paymentUrl,
       transaction_uuid: paymentData.transactionUUID,
     });
   } catch (e) {
@@ -230,16 +336,72 @@ exports.initiateEsewaPayment = async (req, res) => {
   }
 };
 
+exports.renderEsewaPaymentForm = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId);
+    if (!order) return res.status(404).send('Order not found');
+
+    const paymentData = generatePaymentURL({
+      orderId: order._id,
+      amount: order.total_amount,
+      transactionUUID: req.query.transaction_uuid,
+    });
+
+    const inputs = Object.entries(paymentData.fields)
+      .map(([key, value]) => `<input type="hidden" name="${escapeHtml(key)}" value="${escapeHtml(value)}" />`)
+      .join('\n');
+
+    res.send(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Redirecting to eSewa</title>
+    <style>
+      body { font-family: Arial, sans-serif; display: grid; min-height: 100vh; place-items: center; background: #f7faf7; color: #163b2b; }
+      .card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.08); text-align: center; }
+      button { background: #2e7d32; color: white; border: 0; padding: 12px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Redirecting to eSewa...</h2>
+      <p>If it does not open automatically, click the button below.</p>
+      <form id="esewa-form" action="${escapeHtml(ESEWA_CONFIG.PAYMENT_URL)}" method="POST">
+        ${inputs}
+        <button type="submit">Continue to eSewa</button>
+      </form>
+    </div>
+    <script>document.getElementById('esewa-form').submit();</script>
+  </body>
+</html>`);
+  } catch (e) {
+    res.status(500).send(e.message);
+  }
+};
+
 exports.verifyEsewaPayment = async (req, res) => {
   try {
-    const { ref_id, transaction_uuid, orderId } = req.body;
+    let { ref_id, transaction_uuid, orderId, data } = req.body;
+
+    if (data) {
+      const decoded = decodeEsewaData(data);
+      if (!verifyEsewaSignature(decoded)) {
+        return res.status(400).json({ message: 'Invalid eSewa payment signature' });
+      }
+      if (decoded.status !== 'COMPLETE') {
+        return res.status(400).json({ message: `eSewa payment is ${decoded.status || 'not complete'}` });
+      }
+      ref_id = decoded.transaction_code;
+      transaction_uuid = decoded.transaction_uuid;
+      orderId = orderIdFromTransaction(transaction_uuid);
+    }
 
     if (!ref_id || !transaction_uuid || !orderId) {
       return res.status(400).json({ message: 'Missing payment verification data' });
     }
 
-    // Verify payment with eSewa
-    const paymentResult = await processPaymentCallback({ ref_id, transaction_uuid });
+    // Verify payment with eSewa when the legacy callback format is used.
+    const paymentResult = data ? { success: true } : await processPaymentCallback({ ref_id, transaction_uuid });
 
     if (!paymentResult.success) {
       return res.status(400).json({ message: 'Payment verification failed', details: paymentResult });
@@ -257,23 +419,23 @@ exports.verifyEsewaPayment = async (req, res) => {
     await order.save();
 
     // Deduct reward points if used
-    if (order.discount_amount > 0) {
+    if (order.points_used > 0) {
       const updatedUser = await User.findByIdAndUpdate(
         order.user_id,
-        { $inc: { reward_points: -order.discount_amount } },
+        { $inc: { reward_points: -order.points_used } },
         { new: true }
       );
 
       await RewardRedemption.create({
         user_id: order.user_id,
         order_id: order._id,
-        points_used: order.discount_amount,
+        points_used: order.points_used,
         discount_amount: order.discount_amount,
       });
 
       await RewardTransaction.create({
         user_id: order.user_id,
-        points: -order.discount_amount,
+        points: -order.points_used,
         reason: 'order_discount',
         reference_type: 'order',
         reference_id: order._id,

@@ -6,12 +6,12 @@ const https = require('https');
 
 // eSewa Test Credentials
 const ESEWA_CONFIG = {
-  MERCHANT_CODE: 'EPAYTEST',
+  MERCHANT_CODE: process.env.ESEWA_MERCHANT_CODE || 'EPAYTEST',
   SUCCESS_URL: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/orders/success`,
   FAILURE_URL: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/orders/failed`,
-  GATEWAY_URL: 'https://uat.esewa.com.np/epay/api/v2/verify', // Test URL
-  PAYMENT_URL: 'https://uat.esewa.com.np/epay/pay', // Test payment URL
-  SECRET_KEY: '8gBm/:&EnhH.1/q', // For Epay-v2
+  GATEWAY_URL: process.env.ESEWA_GATEWAY_URL || 'https://rc.esewa.com.np/api/epay/transaction/status/',
+  PAYMENT_URL: process.env.ESEWA_PAYMENT_URL || 'https://rc-epay.esewa.com.np/api/epay/main/v2/form',
+  SECRET_KEY: process.env.ESEWA_SECRET_KEY || '8gBm/:&EnhH.1/q',
 };
 
 /**
@@ -20,7 +20,7 @@ const ESEWA_CONFIG = {
  * @param {string} transactionUUID - Unique transaction ID
  * @param {string} productCode - Product/Order code
  */
-const generatePaymentHash = (totalAmount, transactionUUID, productCode = 'ECOTRADE') => {
+const generatePaymentHash = (totalAmount, transactionUUID, productCode = ESEWA_CONFIG.MERCHANT_CODE) => {
   try {
     const hashString = `total_amount=${totalAmount},transaction_uuid=${transactionUUID},product_code=${productCode}`;
     const hash = crypto
@@ -44,15 +44,16 @@ const verifyPayment = async (refId, orderId) => {
   return new Promise((resolve, reject) => {
     try {
       const postData = new URLSearchParams({
-        product_code: 'ECOTRADE',
+        product_code: ESEWA_CONFIG.MERCHANT_CODE,
         total_amount: '100', // Will be overridden by actual amount
         transaction_uuid: orderId,
         ref_id: refId,
       });
 
+      const gateway = new URL(ESEWA_CONFIG.GATEWAY_URL);
       const options = {
-        hostname: 'uat.esewa.com.np',
-        path: '/epay/api/v2/verify',
+        hostname: gateway.hostname,
+        path: gateway.pathname,
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -99,28 +100,31 @@ const generatePaymentURL = (orderData) => {
       customerName = 'Customer',
       customerEmail = 'customer@ecotrade.com',
       customerPhone = '9800000000',
+      transactionUUID,
     } = orderData;
 
-    const transactionUUID = `ECOTRADE-${orderId}-${Date.now()}`;
-    const hash = generatePaymentHash(amount, transactionUUID);
+    const tx = transactionUUID || `ECOTRADE-${orderId}-${Date.now()}`;
+    const formattedAmount = Number(amount).toFixed(0);
+    const hash = generatePaymentHash(formattedAmount, tx);
 
     const params = new URLSearchParams({
-      amount: amount,
-      failure_url: ESEWA_CONFIG.FAILURE_URL,
-      product_code: 'ECOTRADE',
+      amount: formattedAmount,
+      failure_url: `${ESEWA_CONFIG.FAILURE_URL}?orderId=${orderId}`,
+      product_code: ESEWA_CONFIG.MERCHANT_CODE,
       product_service_charge: '0',
       product_delivery_charge: '0',
-      success_url: ESEWA_CONFIG.SUCCESS_URL,
+      success_url: `${ESEWA_CONFIG.SUCCESS_URL}?orderId=${orderId}`,
       tax_amount: '0',
-      total_amount: amount,
-      transaction_uuid: transactionUUID,
+      total_amount: formattedAmount,
+      transaction_uuid: tx,
       signature: hash,
       signed_field_names: 'total_amount,transaction_uuid,product_code',
     });
 
     return {
       url: `${ESEWA_CONFIG.PAYMENT_URL}?${params.toString()}`,
-      transactionUUID,
+      fields: Object.fromEntries(params.entries()),
+      transactionUUID: tx,
       signature: hash,
     };
   } catch (error) {

@@ -9,11 +9,12 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/shop/shop_screen.dart';
-import 'screens/shop/cart_screen.dart';
 import 'screens/scrap/submit_scrap_screen.dart';
 import 'screens/orders/orders_screen.dart';
+import 'screens/orders/payment_result_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/admin/admin_screen.dart';
+import 'screens/collector/collector_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,6 +53,8 @@ class EcoTradeApp extends StatelessWidget {
         '/splash': (_) => const SplashScreen(),
         '/login': (_) => const _AuthFlow(),
         '/main': (_) => const _MainGuard(),
+        '/orders/success': (_) => const PaymentResultScreen(success: true),
+        '/orders/failed': (_) => const PaymentResultScreen(success: false),
       },
     );
   }
@@ -127,6 +130,11 @@ class _MainNavigationState extends State<MainNavigation> {
     final auth = context.watch<AuthProvider>();
     final cart = context.watch<CartProvider>();
     final isAdmin = auth.isAdmin;
+    final isCollector = auth.isCollector;
+
+    if (isCollector) {
+      return const CollectorScreen();
+    }
 
     final screens = [
       HomeScreen(onNavigate: _onItemTapped),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../models/models.dart';
-import '../../utils/app_theme.dart';
+import '../models/models.dart';
+import '../utils/app_theme.dart';
 
 class ProductCard extends StatelessWidget {
   final ProductModel product;
@@ -35,10 +35,10 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = product.name ?? 'Product';
-    final category = product.category ?? 'Uncategorized';
-    final price = product.price ?? 0;
-    final stock = product.stock ?? 0;
+    final name = product.name;
+    final category = product.category.isEmpty ? 'Uncategorized' : product.category;
+    final price = product.price;
+    final stock = product.stock;
     final madeFrom = product.madeFrom ?? '';
     final ecoImpact = product.ecoImpact ?? '';
 
@@ -73,10 +73,7 @@ class ProductCard extends StatelessWidget {
                   ),
                   child: Stack(
                     children: [
-                      Center(
-                        child:
-                            Text(_emoji, style: const TextStyle(fontSize: 40)),
-                      ),
+                      Positioned.fill(child: _ProductImage(product: product, emoji: _emoji)),
                       if (madeFrom.isNotEmpty)
                         Positioned(
                           top: 4,
@@ -224,6 +221,34 @@ class ProductCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ProductImage extends StatelessWidget {
+  final ProductModel product;
+  final String emoji;
+
+  const _ProductImage({required this.product, required this.emoji});
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = product.imageUrl;
+    if (imageUrl == null) {
+      return Center(child: Text(emoji, style: const TextStyle(fontSize: 40)));
+    }
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      child: Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Center(child: Text(emoji, style: const TextStyle(fontSize: 40))),
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.lightGreen));
+        },
       ),
     );
   }

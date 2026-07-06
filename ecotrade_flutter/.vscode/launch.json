@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter Web Server (fixed port, reliable)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "deviceId": "web-server",
+      "args": [
+        "--web-port=56115"
+      ]
+    },
+    {
+      "name": "Flutter Web (Edge, fixed port)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "deviceId": "edge",
+      "args": [
+        "--web-port=56115"
+      ]
+    },
+    {
+      "name": "Flutter Web (Chrome, fixed port - may fail)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "args": [
+        "--web-port=56115"
+      ]
+    }
+  ]
+}

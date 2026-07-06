@@ -1,445 +1,460 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../services/api_service.dart';
+import '../../services/current_location/current_location.dart';
+import '../../utils/app_theme.dart';
+
+class ScrapMapSelection {
+  final double lat;
+  final double lng;
+  final String label;
+
+  const ScrapMapSelection({
+    required this.lat,
+    required this.lng,
+    required this.label,
+  });
+}
+
+class _PlaceResult {
+  final String name;
+  final LatLng point;
+
+  const _PlaceResult({required this.name, required this.point});
+
+  factory _PlaceResult.fromJson(Map<String, dynamic> json) {
+    return _PlaceResult(
+      name: json['display_name']?.toString() ?? '',
+      point: LatLng(
+        double.tryParse(json['lat']?.toString() ?? '') ?? 0,
+        double.tryParse(json['lon']?.toString() ?? '') ?? 0,
+      ),
+    );
+  }
+}
 
 class ScrapMapScreen extends StatefulWidget {
-  final String? scrapId;
+  final bool pickerMode;
   final double? initialLat;
   final double? initialLng;
+  final String? title;
+  final String? searchHint;
+  final String? pickerInstruction;
+  final String? confirmLabel;
 
   const ScrapMapScreen({
-    Key? key,
-    this.scrapId,
+    super.key,
+    this.pickerMode = false,
     this.initialLat,
     this.initialLng,
-  }) : super(key: key);
+    this.title,
+    this.searchHint,
+    this.pickerInstruction,
+    this.confirmLabel,
+  });
 
   @override
   State<ScrapMapScreen> createState() => _ScrapMapScreenState();
 }
 
 class _ScrapMapScreenState extends State<ScrapMapScreen> {
-  late MapController _mapController;
-  List<Marker> _markers = [];
-  List<LatLng> _routeCoordinates = [];
-  Map<String, dynamic>? _selectedMarkerData;
-  bool _showRoute = false;
-  bool _isLoading = true;
-  String? _errorMessage;
+  static const _kathmandu = LatLng(27.7172, 85.3240);
+  late final MapController _mapController;
+  final _searchController = TextEditingController();
+  late LatLng _selectedPoint;
+  LatLng? _routeStart;
+  List<LatLng> _routePoints = [];
+  Timer? _searchDebounce;
+  bool _searching = false;
+  bool _choosingRouteStart = false;
+  bool _routeLoading = false;
+  bool _locating = false;
+  String? _routeError;
+  List<_PlaceResult> _searchResults = [];
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
-    _loadMapMarkers();
-  }
-
-  Future<void> _loadMapMarkers() async {
-    try {
-      setState(() => _isLoading = true);
-
-      final response = await ApiService.get('/api/scrap/map/markers');
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        final markersList = data['markers'] as List;
-
-        setState(() {
-          _markers = markersList.map((marker) {
-            return Marker(
-              point: LatLng(
-                (marker['latitude'] as num).toDouble(),
-                (marker['longitude'] as num).toDouble(),
-              ),
-              child: _buildMarkerIcon(marker['status']),
-              width: 40.0,
-              height: 40.0,
-              builder: (ctx) => GestureDetector(
-                onTap: () => _handleMarkerTap(marker),
-                child: _buildMarkerIcon(marker['status']),
-              ),
-            );
-          }).toList();
-
-          _isLoading = false;
-          _errorMessage = null;
-        });
-
-        // Center map on markers
-        if (_markers.isNotEmpty) {
-          final bounds = LatLngBounds.fromPoints(
-            _markers.map((m) => m.point).toList(),
-          );
-          _mapController.fitBounds(bounds, options: const FitBoundsOptions(padding: EdgeInsets.all(100)));
-        }
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to load map markers: ${e.toString()}';
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _handleMarkerTap(Map<String, dynamic> marker) async {
-    setState(() => _selectedMarkerData = marker);
-
-    // Load route if assigned
-    if ((marker['status'] == 'assigned' || marker['status'] == 'collected') && widget.scrapId != null) {
-      await _loadRouteInfo(widget.scrapId!);
-    }
-  }
-
-  Future<void> _loadRouteInfo(String scrapId) async {
-    try {
-      final response = await ApiService.get('/api/scrap/$scrapId/route');
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        final collectorLat = (data['collectorLocation']['lat'] as num).toDouble();
-        final collectorLng = (data['collectorLocation']['lng'] as num).toDouble();
-        final pickupLat = (data['pickupLocation']['lat'] as num).toDouble();
-        final pickupLng = (data['pickupLocation']['lng'] as num).toDouble();
-
-        setState(() {
-          _routeCoordinates = [
-            LatLng(collectorLat, collectorLng),
-            LatLng(pickupLat, pickupLng),
-          ];
-          _showRoute = true;
-        });
-
-        // Fit bounds to show entire route
-        if (_routeCoordinates.isNotEmpty) {
-          final bounds = LatLngBounds.fromPoints(_routeCoordinates);
-          _mapController.fitBounds(bounds, options: const FitBoundsOptions(padding: EdgeInsets.all(100)));
-        }
-      }
-    } catch (e) {
-      print('Error loading route: $e');
-    }
-  }
-
-  Widget _buildMarkerIcon(String status) {
-    final colors = {
-      'pending': Colors.orange,
-      'approved': Colors.green,
-      'assigned': Colors.blue,
-      'collected': Colors.purple,
-      'completed': Colors.lightGreen,
-      'rejected': Colors.red,
-    };
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors[status] ?? Colors.blue,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: (colors[status] ?? Colors.blue).withOpacity(0.5),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          )
-        ],
-      ),
-      child: const Icon(Icons.location_pin, color: Colors.white, size: 20),
+    _selectedPoint = LatLng(
+      widget.initialLat ?? _kathmandu.latitude,
+      widget.initialLng ?? _kathmandu.longitude,
     );
   }
 
-  Future<void> _openDirections(double lat, double lng) async {
-    final googleMapsUrl = 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng';
-    if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
-      await launchUrl(Uri.parse(googleMapsUrl));
+  String get _label =>
+      'Pinned location (${_selectedPoint.latitude.toStringAsFixed(6)}, ${_selectedPoint.longitude.toStringAsFixed(6)})';
+
+  void _setPoint(LatLng point) {
+    setState(() => _selectedPoint = point);
+  }
+
+  void _setRouteStart(LatLng point) {
+    setState(() {
+      _routeStart = point;
+      _routePoints = [];
+      _routeError = null;
+    });
+  }
+
+  Future<void> _searchPlaces(String query) async {
+    _searchDebounce?.cancel();
+    final trimmed = query.trim();
+    if (trimmed.length < 3) {
+      setState(() => _searchResults = []);
+      return;
     }
+
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () async {
+      setState(() => _searching = true);
+      try {
+        final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
+          'q': trimmed,
+          'format': 'jsonv2',
+          'limit': '5',
+          'countrycodes': 'np',
+        });
+        final res = await http.get(uri, headers: {'User-Agent': 'EcoTrade Flutter App'});
+        if (res.statusCode != 200) return;
+        final data = jsonDecode(res.body) as List;
+        if (!mounted) return;
+        setState(() {
+          _searchResults = data
+              .map((e) => _PlaceResult.fromJson(e as Map<String, dynamic>))
+              .where((e) => e.name.isNotEmpty)
+              .toList();
+        });
+      } finally {
+        if (mounted) setState(() => _searching = false);
+      }
+    });
+  }
+
+  void _selectPlace(_PlaceResult place) {
+    _searchController.text = place.name;
+    _mapController.move(place.point, 16);
+    setState(() {
+      _selectedPoint = place.point;
+      _searchResults = [];
+    });
+  }
+
+  void _confirmSelection() {
+    Navigator.of(context).pop(
+      ScrapMapSelection(
+        lat: _selectedPoint.latitude,
+        lng: _selectedPoint.longitude,
+        label: _label,
+      ),
+    );
+  }
+
+  void _startManualDirections({String? message}) {
+    setState(() {
+      _choosingRouteStart = true;
+      _routeStart = null;
+      _routePoints = [];
+      _routeError = message;
+    });
+  }
+
+  Future<void> _startInAppDirections() async {
+    setState(() {
+      _locating = true;
+      _routeError = null;
+    });
+
+    final current = await getCurrentLocation();
+    if (!mounted) return;
+
+    if (current == null) {
+      setState(() => _locating = false);
+      _startManualDirections(message: 'Location permission unavailable. Tap your current location on the map.');
+      return;
+    }
+
+    setState(() {
+      _locating = false;
+      _routeStart = current;
+      _routePoints = [];
+      _routeError = null;
+    });
+    await _findRouteInApp();
+  }
+
+  Future<void> _findRouteInApp() async {
+    final start = _routeStart;
+    if (start == null) return;
+
+    setState(() {
+      _routeLoading = true;
+      _routeError = null;
+    });
+
+    try {
+      final uri = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${start.longitude},${start.latitude};'
+        '${_selectedPoint.longitude},${_selectedPoint.latitude}'
+        '?overview=full&geometries=geojson',
+      );
+      final res = await http.get(uri);
+      if (res.statusCode != 200) {
+        throw Exception('Route service unavailable');
+      }
+
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final routes = data['routes'] as List? ?? [];
+      if (routes.isEmpty) throw Exception('No route found');
+
+      final geometry = routes.first['geometry'] as Map<String, dynamic>;
+      final coords = geometry['coordinates'] as List;
+      final points = coords.map((coord) {
+        final pair = coord as List;
+        return LatLng((pair[1] as num).toDouble(), (pair[0] as num).toDouble());
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _routePoints = points;
+        _choosingRouteStart = false;
+      });
+
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints([start, _selectedPoint, ...points]),
+          padding: const EdgeInsets.all(80),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _routePoints = [start, _selectedPoint];
+        _routeError = 'Exact road route unavailable, showing direct path.';
+        _choosingRouteStart = false;
+      });
+    } finally {
+      if (mounted) setState(() => _routeLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scrap Collection Map'),
-        elevation: 0,
-        backgroundColor: const Color(0xFF667eea),
+        title: Text(widget.title ?? (widget.pickerMode ? 'Pin Pickup Location' : 'Pickup Location')),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadMapMarkers,
-          ),
-          IconButton(
-            icon: const Icon(Icons.layers),
-            onPressed: () => _showLegend(context),
-          ),
+          if (!widget.pickerMode)
+            IconButton(
+              icon: const Icon(Icons.directions_outlined),
+              tooltip: 'Use my location',
+              onPressed: _locating || _routeLoading ? null : _startInAppDirections,
+            ),
         ],
       ),
       body: Stack(
         children: [
-          // Map
-          _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(),
-                )
-              : _errorMessage != null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                          const SizedBox(height: 16),
-                          Text(_errorMessage!),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _loadMapMarkers,
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    )
-                  : FlutterMap(
-                      mapController: _mapController,
-                      options: MapOptions(
-                        center: LatLng(27.7172, 85.324),
-                        zoom: 13,
-                        maxZoom: 19,
-                      ),
-                      children: [
-                        // TileLayer
-                        TileLayer(
-                          urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          subdomains: const ['a', 'b', 'c'],
-                          attributionBuilder: (_) {
-                            return Text(
-                              '© OpenStreetMap contributors',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            );
-                          },
-                        ),
-                        // Route Polyline
-                        if (_showRoute && _routeCoordinates.isNotEmpty)
-                          PolylineLayer(
-                            polylines: [
-                              Polyline(
-                                points: _routeCoordinates,
-                                color: Colors.blue,
-                                strokeWidth: 4,
-                                isDashed: true,
-                              )
-                            ],
-                          ),
-                        // Route Start/End Points
-                        if (_showRoute && _routeCoordinates.isNotEmpty)
-                          MarkerLayer(
-                            markers: [
-                              // Start point
-                              Marker(
-                                point: _routeCoordinates.first,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.green,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 3),
-                                  ),
-                                  child: const Icon(Icons.check, color: Colors.white),
-                                ),
-                              ),
-                              // End point
-                              Marker(
-                                point: _routeCoordinates.last,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 3),
-                                  ),
-                                  child: const Icon(Icons.location_on, color: Colors.white),
-                                ),
-                              ),
-                            ],
-                          ),
-                        // Markers
-                        MarkerLayer(markers: _markers),
-                      ],
-                    ),
-
-          // Legend
-          Positioned(
-            top: 16,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
-                  )
-                ],
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _selectedPoint,
+              initialZoom: 14,
+              maxZoom: 19,
+              onTap: widget.pickerMode
+                  ? (_, point) => _setPoint(point)
+                  : _choosingRouteStart
+                      ? (_, point) => _setRouteStart(point)
+                      : null,
+              onPositionChanged: widget.pickerMode
+                  ? (position, hasGesture) {
+                      final center = position.center;
+                      if (hasGesture && center != null) _setPoint(center);
+                    }
+                  : null,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.ecotrade.app',
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Status Legend',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                  const SizedBox(height: 8),
-                  _legendItem('Pending', Colors.orange),
-                  _legendItem('Approved', Colors.green),
-                  _legendItem('Assigned', Colors.blue),
-                  _legendItem('Collected', Colors.purple),
-                  _legendItem('Completed', Colors.lightGreen),
-                  _legendItem('Rejected', Colors.red),
-                ],
+              if (_routePoints.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _routePoints,
+                      color: AppColors.blue,
+                      strokeWidth: 5,
+                    ),
+                  ],
+                ),
+              if (!widget.pickerMode)
+                MarkerLayer(
+                  markers: [
+                    if (_routeStart != null)
+                      Marker(
+                        point: _routeStart!,
+                        width: 44,
+                        height: 44,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.blue,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                          ),
+                          child: const Icon(Icons.my_location, color: Colors.white, size: 22),
+                        ),
+                      ),
+                    Marker(
+                      point: _selectedPoint,
+                      width: 48,
+                      height: 48,
+                      child: const Icon(
+                        Icons.location_pin,
+                        color: AppColors.red,
+                        size: 44,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          if (widget.pickerMode)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 42),
+                child: Icon(Icons.location_pin, color: AppColors.red, size: 48),
               ),
             ),
-          ),
-
-          // Selected Marker Info Panel
-          if (_selectedMarkerData != null)
+          if (widget.pickerMode)
             Positioned(
-              bottom: 16,
               left: 16,
               right: 16,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
+              top: 16,
+              child: Column(children: [
+                Material(
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(14),
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    )
-                  ],
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _searchPlaces,
+                    style: const TextStyle(color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: widget.searchHint ?? 'Search pickup area or landmark',
+                      prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
+                      suffixIcon: _searching
+                          ? const Padding(
+                              padding: EdgeInsets.all(14),
+                              child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                            )
+                          : _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchResults = []);
+                                  },
+                                )
+                              : null,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedMarkerData!['title'] ?? 'Scrap Request',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(_selectedMarkerData!['status']).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  _selectedMarkerData!['status'].toString().toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: _getStatusColor(_selectedMarkerData!['status']),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => setState(() => _selectedMarkerData = null),
-                        ),
+                if (_searchResults.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 12, offset: const Offset(0, 4)),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    if (_selectedMarkerData!['address'] != null)
-                      _infoRow('Address', _selectedMarkerData!['address']),
-                    if (_selectedMarkerData!['distance'] != null)
-                      _infoRow('Distance', '${_selectedMarkerData!['distance'].toStringAsFixed(2)} km'),
-                    if (_selectedMarkerData!['estimatedTime'] != null)
-                      _infoRow('Est. Time', '${_selectedMarkerData!['estimatedTime']} mins'),
-                    if (_selectedMarkerData!['amount'] != null)
-                      _infoRow('Amount', 'Rs. ${_selectedMarkerData!['amount']}'),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _openDirections(
-                          _selectedMarkerData!['latitude'],
-                          _selectedMarkerData!['longitude'],
-                        ),
-                        icon: const Icon(Icons.directions),
-                        label: const Text('Get Directions'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF667eea),
-                        ),
-                      ),
+                    child: Column(
+                      children: _searchResults.map((place) {
+                        return ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.place_outlined, color: AppColors.green400),
+                          title: Text(place.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          onTap: () => _selectPlace(place),
+                        );
+                      }).toList(),
                     ),
-                  ],
-                ),
+                  ),
+              ]),
+            ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.14),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _legendItem(String label, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.grey.shade300),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(
+                  widget.pickerMode
+                      ? (widget.pickerInstruction ?? 'Drag the map or search to place the pin')
+                      : _choosingRouteStart
+                          ? 'Tap your current/start location'
+                          : 'Pinned pickup address',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _choosingRouteStart
+                      ? (_routeStart == null
+                          ? (_routeError ?? 'Choose where the collector is starting from.')
+                          : 'Start selected. Tap Find Route to draw directions in the app.')
+                      : (_routeError ?? _label),
+                  style: TextStyle(fontSize: 12, color: _routeError == null ? AppColors.textMuted : AppColors.yellow),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: widget.pickerMode
+                        ? _confirmSelection
+                        : _choosingRouteStart
+                            ? (_routeStart == null || _routeLoading ? null : _findRouteInApp)
+                            : (_locating || _routeLoading ? null : _startInAppDirections),
+                    icon: _routeLoading || _locating
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : Icon(widget.pickerMode ? Icons.check_rounded : Icons.directions_outlined),
+                    label: Text(widget.pickerMode
+                        ? (widget.confirmLabel ?? 'Use This Pickup Location')
+                        : _choosingRouteStart
+                            ? 'Find Route'
+                            : (_locating ? 'Finding Your Location...' : (_routePoints.isEmpty ? 'Use My Location' : 'Refresh Route From My Location'))),
+                  ),
+                ),
+              ]),
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11),
-          ),
         ],
       ),
     );
-  }
-
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-
-  Color _getStatusColor(String status) {
-    const colors = {
-      'pending': Colors.orange,
-      'approved': Colors.green,
-      'assigned': Colors.blue,
-      'collected': Colors.purple,
-      'completed': Colors.lightGreen,
-      'rejected': Colors.red,
-    };
-    return colors[status] ?? Colors.grey;
   }
 }
