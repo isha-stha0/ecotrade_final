@@ -182,6 +182,41 @@ export const orderAPI = {
     const response = await api.post('/api/orders', payload);
     return response.data;
   },
+  // eSewa Payment Integration
+  initiateEsewaPayment: async (payload) => {
+    const response = await api.post('/api/orders/esewa/initiate', payload);
+    return response.data;
+  },
+  verifyEsewaPayment: async (payload) => {
+    const response = await api.post('/api/orders/esewa/verify', payload);
+    return response.data;
+  },
+  handleEsewaFailure: async (payload) => {
+    const response = await api.post('/api/orders/esewa/failure', payload);
+    return response.data;
+  },
+  // Map & Location Features
+  getScrapMapMarkers: async (status = null) => {
+    const url = status ? `/api/scrap/map/markers?status=${status}` : '/api/scrap/map/markers';
+    const response = await api.get(url);
+    return response.data;
+  },
+  getNearbyScrapRequests: async (lat, lng, radius = 5) => {
+    const response = await api.get(`/api/scrap/map/nearby?lat=${lat}&lng=${lng}&radius=${radius}`);
+    return response.data;
+  },
+  getScrapLocationData: async (scrapId) => {
+    const response = await api.get(`/api/scrap/${scrapId}/location`);
+    return response.data;
+  },
+  getScrapRouteInfo: async (scrapId) => {
+    const response = await api.get(`/api/scrap/${scrapId}/route`);
+    return response.data;
+  },
+  updateCollectorLocation: async (lat, lng) => {
+    const response = await api.post('/api/scrap/collector/location', { lat, lng });
+    return response.data;
+  },
 };
 
 export const complaintAPI = {

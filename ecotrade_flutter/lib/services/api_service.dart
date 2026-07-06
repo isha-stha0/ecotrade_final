@@ -87,10 +87,39 @@ class ApiService {
   }
 
   // ── Scrap ───────────────────────────────────────────────────
-  Future<ScrapModel> submitScrap(Map<String, dynamic> data) async {
-    final res = await http.post(Uri.parse('$base/scrap'),
-        headers: await _headers, body: jsonEncode(data));
-    return ScrapModel.fromJson(_handle(res));
+  Future<ScrapModel> submitScrap(Map<String, dynamic> data, {List<File>? photos}) async {
+    final headers = await _headers;
+    
+    // If no photos, use JSON encoding for backward compatibility
+    if (photos == null || photos.isEmpty) {
+      final res = await _send(() => http.post(Uri.parse('$base/scrap'),
+          headers: headers, body: jsonEncode(data)));
+      return ScrapModel.fromJson(_handle(res));
+    }
+    
+    // Use multipart form data for file uploads
+    final request = http.MultipartRequest('POST', Uri.parse('$base/scrap'));
+    
+    // Add headers
+    headers.forEach((key, value) {
+      request.headers[key] = value;
+    });
+    
+    // Add form fields
+    data.forEach((key, value) {
+      request.fields[key] = value.toString();
+    });
+    
+    // Add photos
+    for (final photo in photos) {
+      request.files.add(
+        await http.MultipartFile.fromPath('photos', photo.path),
+      );
+    }
+    
+    final streamResponse = await _send(() => request.send());
+    final response = await http.Response.fromStream(streamResponse);
+    return ScrapModel.fromJson(_handle(response));
   }
 
   Future<List<ScrapModel>> getMyScrap() async {

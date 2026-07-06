@@ -4,6 +4,7 @@ const User = require('../models/User');
 const RewardTransaction = require('../models/RewardTransaction');
 const RewardRedemption = require('../models/RewardRedemption');
 const { sendEmail } = require('../utils/mailer');
+const { generatePaymentURL, processPaymentCallback } = require('../services/esewaService');
 
 exports.placeOrder = async (req, res) => {
   try {
@@ -154,4 +155,195 @@ exports.updateOrderStatus = async (req, res) => {
     if (!order) return res.status(404).json({ message: 'Order not found' });
     res.json(order);
   } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+// eSewa Payment Integration
+exports.initiateEsewaPayment = async (req, res) => {
+  try {
+    const { items, shippingAddress, notes, points_used, discount_amount } = req.body;
+    
+    if (!items || items.length === 0) {
+      return res.status(400).json({ message: 'No items in the order' });
+    }
+
+    if (points_used && points_used > 0) {
+      if (req.user.reward_points < points_used) {
+        return res.status(400).json({ message: `Insufficient reward points. You have ${req.user.reward_points} points.` });
+      }
+    }
+
+    let subtotal_amount = 0;
+    const resolvedItems = [];
+
+    // Validate and resolve all items
+    for (const item of items) {
+      const p = await Product.findById(item.product);
+      if (!p) return res.status(404).json({ message: `Product not found: ${item.product}` });
+      if (p.stock_quantity < item.quantity) {
+        return res.status(400).json({ message: `Insufficient stock for ${p.name}. Available: ${p.stock_quantity}` });
+      }
+      
+      const itemSubtotal = p.price * item.quantity;
+      subtotal_amount += itemSubtotal;
+
+      resolvedItems.push({
+        product_id: p._id,
+        quantity: item.quantity,
+        price_at_time: p.price,
+        subtotal: itemSubtotal
+      });
+    }
+
+    const appliedDiscount = discount_amount || (points_used ? points_used : 0);
+    const total_amount = Math.max(0, subtotal_amount - appliedDiscount);
+
+    // Create pending order
+    const order = await Order.create({
+      user_id: req.user._id,
+      items: resolvedItems,
+      subtotal_amount,
+      discount_amount: appliedDiscount,
+      total_amount,
+      payment_method: 'esewa',
+      shipping_address: shippingAddress,
+      delivery_notes: notes || '',
+      order_status: 'pending',
+      payment_status: 'pending',
+    });
+
+    // Generate eSewa payment URL
+    const paymentData = generatePaymentURL({
+      orderId: order._id,
+      amount: total_amount,
+      customerName: req.user.full_name,
+      customerEmail: req.user.email,
+      customerPhone: req.user.phone,
+    });
+
+    res.json({
+      order: order,
+      payment_url: paymentData.url,
+      transaction_uuid: paymentData.transactionUUID,
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
+exports.verifyEsewaPayment = async (req, res) => {
+  try {
+    const { ref_id, transaction_uuid, orderId } = req.body;
+
+    if (!ref_id || !transaction_uuid || !orderId) {
+      return res.status(400).json({ message: 'Missing payment verification data' });
+    }
+
+    // Verify payment with eSewa
+    const paymentResult = await processPaymentCallback({ ref_id, transaction_uuid });
+
+    if (!paymentResult.success) {
+      return res.status(400).json({ message: 'Payment verification failed', details: paymentResult });
+    }
+
+    // Update order with payment confirmation
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Update order status
+    order.payment_status = 'paid';
+    order.order_status = 'placed';
+    await order.save();
+
+    // Deduct reward points if used
+    if (order.discount_amount > 0) {
+      const updatedUser = await User.findByIdAndUpdate(
+        order.user_id,
+        { $inc: { reward_points: -order.discount_amount } },
+        { new: true }
+      );
+
+      await RewardRedemption.create({
+        user_id: order.user_id,
+        order_id: order._id,
+        points_used: order.discount_amount,
+        discount_amount: order.discount_amount,
+      });
+
+      await RewardTransaction.create({
+        user_id: order.user_id,
+        points: -order.discount_amount,
+        reason: 'order_discount',
+        reference_type: 'order',
+        reference_id: order._id,
+        balance_after: updatedUser ? updatedUser.reward_points : 0,
+      });
+    }
+
+    // Send confirmation email
+    const populated = await Order.findById(order._id).populate('items.product_id', 'name price');
+    const emailSubject = `EcoTrade - Payment Confirmed #${order._id}`;
+    const emailHtml = `
+      <h3>Payment Confirmed!</h3>
+      <p>Dear ${order.user.full_name || 'Customer'},</p>
+      <p>Your payment has been successfully processed.</p>
+      <h4>Order Details:</h4>
+      <ul>
+        ${populated.items.map(item => `<li>${item.product_id.name} x ${item.quantity} - Rs. ${item.subtotal}</li>`).join('')}
+      </ul>
+      <p><strong>Total Amount Paid: Rs. ${order.total_amount}</strong></p>
+      <p>Payment Reference: ${ref_id}</p>
+      <p>Your order is now confirmed and will be processed soon.</p>
+      <br/>
+      <p>EcoTrade Team</p>
+    `;
+
+    await sendEmail({
+      to: order.user.email,
+      subject: emailSubject,
+      text: `Payment confirmed for order #${order._id}. Reference: ${ref_id}`,
+      html: emailHtml,
+    });
+
+    res.json({
+      success: true,
+      message: 'Payment verified and order confirmed',
+      order,
+      transaction_id: ref_id,
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
+exports.handleEsewaFailure = async (req, res) => {
+  try {
+    const { orderId, failure_reason } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    order.payment_status = 'failed';
+    order.order_status = 'cancelled';
+    await order.save();
+
+    // Return stock to products
+    for (const item of order.items) {
+      await Product.findByIdAndUpdate(item.product_id, {
+        $inc: { stock_quantity: item.quantity, sold: -item.quantity },
+      });
+    }
+
+    res.json({
+      success: false,
+      message: 'Payment failed',
+      order,
+      reason: failure_reason,
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
 };

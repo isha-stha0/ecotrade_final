@@ -4,6 +4,19 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const fs = require('fs');
 const path = require('path');
 
+// Configuration
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
+const ALLOWED_FORMATS = ['jpg', 'jpeg', 'png'];
+
+// File filter function
+const fileFilter = (req, file, cb) => {
+  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    return cb(new Error(`Only PNG and JPG files are allowed. Received: ${file.mimetype}`), false);
+  }
+  cb(null, true);
+};
+
 let storage;
 let upload;
 
@@ -22,10 +35,18 @@ if (isCloudinaryConfigured) {
     cloudinary: cloudinary,
     params: {
       folder: 'ecotrade',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+      allowed_formats: ALLOWED_FORMATS,
+      resource_type: 'auto',
     },
   });
-  upload = multer({ storage: storage });
+  
+  upload = multer({
+    storage: storage,
+    fileFilter: fileFilter,
+    limits: {
+      fileSize: MAX_FILE_SIZE,
+    },
+  });
 } else {
   // Local storage fallback
   const uploadDir = path.join(__dirname, '../uploads');
@@ -42,7 +63,14 @@ if (isCloudinaryConfigured) {
       cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     },
   });
-  upload = multer({ storage: storage });
+  
+  upload = multer({
+    storage: storage,
+    fileFilter: fileFilter,
+    limits: {
+      fileSize: MAX_FILE_SIZE,
+    },
+  });
 }
 
 // Helper to get file URL
@@ -62,4 +90,7 @@ module.exports = {
   upload,
   getFileUrl,
   cloudinary,
+  MAX_FILE_SIZE,
+  ALLOWED_MIME_TYPES,
+  ALLOWED_FORMATS,
 };
