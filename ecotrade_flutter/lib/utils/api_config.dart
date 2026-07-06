@@ -7,7 +7,7 @@ class ApiConfig {
 
   /// Your PC's WiFi/LAN IP (run `ipconfig` on Windows).
   /// Used when [usePhysicalDeviceHost] is true (physical phone on same WiFi).
-  static const String physicalDeviceHost = '192.168.10.70';
+  static const String physicalDeviceHost = '192.168.1.88';
 
   /// Set to `true` when running on a **physical** Android/iOS device.
   /// Set to `false` for Android emulator, iOS simulator, or desktop.
