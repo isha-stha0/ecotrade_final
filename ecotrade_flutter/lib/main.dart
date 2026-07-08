@@ -5,6 +5,7 @@ import 'services/auth_provider.dart';
 import 'services/cart_provider.dart';
 import 'utils/app_theme.dart';
 import 'screens/splash/splash_screen.dart';
+import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home/home_screen.dart';
@@ -51,6 +52,7 @@ class EcoTradeApp extends StatelessWidget {
       initialRoute: '/splash',
       routes: {
         '/splash': (_) => const SplashScreen(),
+        '/onboarding': (_) => const OnboardingScreen(),
         '/login': (_) => const _AuthFlow(),
         '/main': (_) => const _MainGuard(),
         '/orders/success': (_) => const PaymentResultScreen(success: true),
@@ -160,7 +162,7 @@ class _MainNavigationState extends State<MainNavigation> {
           onDestinationSelected: _onItemTapped,
           backgroundColor: AppColors.bgSecondary, // light grey (was dark)
           indicatorColor:
-              AppColors.lightGreen.withOpacity(0.15), // subtle light green
+              AppColors.lightGreen.withValues(alpha: 0.15), // subtle light green
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           destinations: [
             const NavigationDestination(

@@ -19,6 +19,28 @@ exports.getAllUsers = async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
+exports.updateUserProfile = async (req, res) => {
+  try {
+    const { full_name, email, phone, address, is_active, is_verified } = req.body;
+    const update = {};
+
+    if (full_name !== undefined) update.full_name = full_name;
+    if (email !== undefined) update.email = email;
+    if (phone !== undefined) update.phone = phone;
+    if (address !== undefined) update.address = address;
+    if (is_active !== undefined) update.is_active = is_active;
+    if (is_verified !== undefined) update.is_verified = is_verified;
+
+    const user = await User.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
 exports.toggleUserActive = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -41,14 +63,54 @@ exports.changeUserRole = async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
+exports.deleteUser = async (req, res) => {
+  try {
+    if (req.user?._id?.toString() === req.params.id) {
+      return res.status(400).json({ message: 'You cannot delete your own admin account' });
+    }
+
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    await CollectorProfile.deleteOne({ user_id: user._id });
+    res.json({ message: 'User deleted successfully', deletedUser: user });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
 // ──────────────────────────────────────────────────────────────
 // COLLECTOR PROFILES
 // ──────────────────────────────────────────────────────────────
 exports.getAllCollectorProfiles = async (req, res) => {
   try {
     const profiles = await CollectorProfile.find()
-      .populate('user_id', 'full_name email phone');
-    res.json(profiles);
+      .populate('user_id', 'full_name email phone address role profile_photo reward_points is_active is_verified last_login_at createdAt');
+    res.json(profiles.filter((profile) => profile.user_id?.role === 'collector'));
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+exports.createCollectorProfile = async (req, res) => {
+  try {
+    const { user_id, approved_by_admin, service_area_km, vehicle_type, is_available } = req.body;
+    if (!user_id) return res.status(400).json({ message: 'user_id is required' });
+
+    const user = await User.findById(user_id);
+    if (!user || user.role !== 'collector') {
+      return res.status(400).json({ message: 'Selected user is not a collector' });
+    }
+
+    const profile = await CollectorProfile.findOneAndUpdate(
+      { user_id },
+      {
+        user_id,
+        approved_by_admin: approved_by_admin ?? false,
+        service_area_km: service_area_km !== undefined ? parseFloat(service_area_km) : 5,
+        vehicle_type: vehicle_type || 'motorcycle',
+        is_available: is_available ?? true,
+      },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    ).populate('user_id', 'full_name email phone address role profile_photo reward_points is_active is_verified last_login_at createdAt');
+
+    res.status(201).json(profile);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
@@ -62,7 +124,7 @@ exports.updateCollectorProfile = async (req, res) => {
     if (is_available !== undefined) update.is_available = is_available;
 
     const profile = await CollectorProfile.findByIdAndUpdate(req.params.id, update, { new: true })
-      .populate('user_id', 'full_name email phone');
+      .populate('user_id', 'full_name email phone address role profile_photo reward_points is_active is_verified last_login_at createdAt');
     if (!profile) return res.status(404).json({ message: 'Collector profile not found' });
     res.json(profile);
   } catch (e) { res.status(500).json({ message: e.message }); }

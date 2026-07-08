@@ -241,25 +241,25 @@ class _ShopScreenState extends State<ShopScreen> {
                           builder: (context, constraints) {
                             // Calculate columns based on available width
                             int crossAxisCount;
-                            double childAspectRatio;
+                            double cardHeight;
                             double spacing;
 
                             final width = constraints.maxWidth;
-                            if (width < 400) {
-                              crossAxisCount = 2;
-                              childAspectRatio = 0.9; // more height
-                              spacing = 10;
+                            if (width < 360) {
+                              crossAxisCount = 1;
+                              cardHeight = 360;
+                              spacing = 14;
                             } else if (width < 600) {
                               crossAxisCount = 2;
-                              childAspectRatio = 1.0;
+                              cardHeight = 315;
                               spacing = 12;
                             } else if (width < 900) {
                               crossAxisCount = 3;
-                              childAspectRatio = 1.1;
+                              cardHeight = 320;
                               spacing = 14;
                             } else {
                               crossAxisCount = 4;
-                              childAspectRatio = 1.3;
+                              cardHeight = 330;
                               spacing = 18;
                             }
 
@@ -270,7 +270,7 @@ class _ShopScreenState extends State<ShopScreen> {
                                 crossAxisCount: crossAxisCount,
                                 crossAxisSpacing: spacing,
                                 mainAxisSpacing: spacing,
-                                childAspectRatio: childAspectRatio,
+                                mainAxisExtent: cardHeight,
                               ),
                               itemCount: _products.length,
                               itemBuilder: (_, i) {

@@ -1,3 +1,24 @@
+import '../utils/api_config.dart';
+
+String _normalizeAssetUrl(String url) {
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) return trimmed;
+
+  final apiBase = ApiConfig.baseUrl;
+  final serverBase = apiBase.endsWith('/api')
+      ? apiBase.substring(0, apiBase.length - 4)
+      : apiBase;
+
+  if (trimmed.startsWith('/')) return '$serverBase$trimmed';
+  if (trimmed.startsWith('http://localhost:5000')) {
+    return trimmed.replaceFirst('http://localhost:5000', serverBase);
+  }
+  if (trimmed.startsWith('http://127.0.0.1:5000')) {
+    return trimmed.replaceFirst('http://127.0.0.1:5000', serverBase);
+  }
+  return trimmed;
+}
+
 class UserModel {
   final String id, name, email, role;
   final String? phone, address;
@@ -73,8 +94,13 @@ class ProductModel {
   factory ProductModel.fromJson(Map<String, dynamic> j) {
     final images = (j['image_urls'] as List? ?? j['imageUrls'] as List? ?? [])
         .whereType<String>()
+        .map(_normalizeAssetUrl)
         .where((url) => url.isNotEmpty)
         .toList();
+    final singleImage = j['image'];
+    if (images.isEmpty && singleImage is String && singleImage.isNotEmpty) {
+      images.add(_normalizeAssetUrl(singleImage));
+    }
     return ProductModel(
       id: j['_id'] ?? j['id'] ?? '',
       name: j['name'] ?? '',

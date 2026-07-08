@@ -38,6 +38,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final imageHeight = (MediaQuery.sizeOf(context).width * 0.72).clamp(240.0, 360.0).toDouble();
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
@@ -68,7 +70,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              height: 200,
+              height: imageHeight,
               width: double.infinity,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -82,10 +84,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
               child: widget.product.imageUrl == null
                   ? Center(child: Text(_emoji, style: const TextStyle(fontSize: 80)))
-                  : Image.network(
-                      widget.product.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Center(child: Text(_emoji, style: const TextStyle(fontSize: 80))),
+                  : Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Image.network(
+                        widget.product.imageUrl!,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Center(child: Text(_emoji, style: const TextStyle(fontSize: 80))),
+                      ),
                     ),
             ),
             Padding(
@@ -151,8 +156,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     ),
                   ],
                   const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         'NPR ${_price.toStringAsFixed(0)}',
@@ -162,25 +170,38 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           color: AppColors.darkGreen,
                         ),
                       ),
-                      Row(
-                        children: [
-                          const Icon(Icons.inventory_2_outlined,
-                              size: 16, color: AppColors.textMuted),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${_stock} in stock',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textMuted,
-                              fontWeight: FontWeight.w500,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.inventory_2_outlined,
+                                size: 16, color: AppColors.textMuted),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${_stock} in stock',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textMuted,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 24),
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 10,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       const Text(
                         'Quantity',
@@ -190,7 +211,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           color: AppColors.textMuted,
                         ),
                       ),
-                      const Spacer(),
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.grey.shade50,
@@ -199,6 +219,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               color: AppColors.darkGreen.withOpacity(0.15)),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: const Icon(Icons.remove,

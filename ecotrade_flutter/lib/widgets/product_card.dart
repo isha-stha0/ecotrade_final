@@ -35,184 +35,169 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = product.name;
-    final category = product.category.isEmpty ? 'Uncategorized' : product.category;
-    final price = product.price;
-    final stock = product.stock;
+    final category = product.category.isEmpty ? 'Eco Product' : product.category;
     final madeFrom = product.madeFrom ?? '';
     final ecoImpact = product.ecoImpact ?? '';
+    final inStock = product.stock > 0;
 
-    return ClipRect(
-      child: GestureDetector(
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.border),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Image / emoji area – takes 55% of height
               Expanded(
-                flex: 55,
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: AppColors.lightGreen.withOpacity(0.08),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16),
+                flex: 46,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: _ProductImage(imageUrl: product.imageUrl, emoji: _emoji),
                     ),
-                  ),
-                  child: Stack(
-                    children: [
-                      Positioned.fill(child: _ProductImage(product: product, emoji: _emoji)),
-                      if (madeFrom.isNotEmpty)
-                        Positioned(
-                          top: 4,
-                          left: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.lightGreen.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(100),
-                              border: Border.all(
-                                color: AppColors.lightGreen.withOpacity(0.3),
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      right: 8,
+                      child: Row(
+                        children: [
+                          Flexible(child: _Pill(text: category)),
+                        ],
+                      ),
+                    ),
+                    if (!inStock)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.white.withOpacity(0.78),
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.red.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: AppColors.red.withOpacity(0.35)),
                               ),
-                            ),
-                            child: Text(
-                              '♻️ $madeFrom',
-                              style: const TextStyle(
-                                fontSize: 7,
-                                color: AppColors.lightGreen,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (stock <= 0)
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(16),
-                              ),
-                            ),
-                            child: Center(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(100),
-                                  border: Border.all(
-                                    color: Colors.red.withOpacity(0.3),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'OUT OF STOCK',
-                                  style: TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                              child: const Text(
+                                'OUT OF STOCK',
+                                style: TextStyle(
+                                  color: AppColors.red,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                             ),
                           ),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               ),
-              // Content area – takes 45% of height
               Expanded(
-                flex: 45,
+                flex: 54,
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Top: category + name + eco impact
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Text(
+                        product.name,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.darkGreen,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 5),
+                      if (madeFrom.isNotEmpty)
+                        Text(
+                          'Made from $madeFrom',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      else
+                        Text(
+                          product.description,
+                          style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      if (ecoImpact.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          ecoImpact,
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            color: AppColors.lightGreen,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const Spacer(),
+                      Row(
                         children: [
-                          Text(
-                            category,
-                            style: const TextStyle(
-                              fontSize: 8,
-                              color: AppColors.textMuted,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.05,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.darkGreen,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (ecoImpact.isNotEmpty)
-                            Text(
-                              '🌱 $ecoImpact',
+                          Expanded(
+                            child: Text(
+                              'NPR ${product.price.toStringAsFixed(0)}',
                               style: const TextStyle(
-                                fontSize: 7,
-                                color: AppColors.lightGreen,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.darkGreen,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${product.stock} left',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: inStock ? AppColors.textMuted : AppColors.red,
+                            ),
+                          ),
                         ],
                       ),
-                      // Bottom: price + add button
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'NPR ${price.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.darkGreen,
-                              fontFamily: 'monospace',
-                            ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 32,
+                        child: ElevatedButton.icon(
+                          onPressed: inStock ? onAddToCart : null,
+                          icon: const Icon(Icons.add_shopping_cart, size: 15),
+                          label: Text(inStock ? 'Add' : 'Unavailable'),
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            backgroundColor: AppColors.darkGreen,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: AppColors.textDim,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                           ),
-                          GestureDetector(
-                            onTap: stock > 0 ? onAddToCart : null,
-                            child: Container(
-                              width: 22,
-                              height: 22,
-                              decoration: BoxDecoration(
-                                color: stock > 0
-                                    ? AppColors.lightGreen
-                                    : AppColors.textMuted,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(
-                                Icons.add,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -227,28 +212,67 @@ class ProductCard extends StatelessWidget {
 }
 
 class _ProductImage extends StatelessWidget {
-  final ProductModel product;
+  final String? imageUrl;
   final String emoji;
 
-  const _ProductImage({required this.product, required this.emoji});
+  const _ProductImage({required this.imageUrl, required this.emoji});
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = product.imageUrl;
-    if (imageUrl == null) {
-      return Center(child: Text(emoji, style: const TextStyle(fontSize: 40)));
-    }
+    final fallback = Container(
+      color: const Color(0xFFF8FAFC),
+      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 42))),
+    );
 
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+    if (imageUrl == null) return fallback;
+
+    return Container(
+      color: const Color(0xFFF8FAFC),
+      padding: const EdgeInsets.all(12),
       child: Image.network(
-        imageUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Center(child: Text(emoji, style: const TextStyle(fontSize: 40))),
+        imageUrl!,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => fallback,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
-          return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.lightGreen));
+          return const Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.lightGreen),
+            ),
+          );
         },
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final String text;
+
+  const _Pill({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.92),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 9.5,
+          color: AppColors.darkGreen,
+          fontWeight: FontWeight.w800,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

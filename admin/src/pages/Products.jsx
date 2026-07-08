@@ -341,25 +341,26 @@ const Products = () => {
                     ) : (
                       <>
                         <button 
-                          onClick={() => handleOpenEditModal(p)}
-                          className="btn btn-secondary btn-edit"
-                          disabled={actionLoading}
-                        >
-                          <Edit size={14} style={{ marginRight: '0.25rem' }} /> Edit
-                        </button>
-                        <button 
                           onClick={() => openSellModal(p)}
-                          className="btn btn-primary btn-sell"
+                          className="btn btn-primary product-sell-btn"
                         >
                           Sell
                         </button>
                         <button 
+                          onClick={() => handleOpenEditModal(p)}
+                          className="action-icon-btn product-action-icon"
+                          disabled={actionLoading}
+                          title="Edit product"
+                        >
+                          <Edit size={13} />
+                        </button>
+                        <button 
                           onClick={() => handleDeleteProduct(p._id)}
-                          className="btn btn-danger btn-delete"
+                          className="action-icon-btn action-icon-danger product-action-icon"
                           disabled={actionLoading}
                           title="Delete product"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={13} />
                         </button>
                       </>
                     )}

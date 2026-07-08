@@ -4,7 +4,6 @@ export 'product_card.dart';
 // ── remaining widgets ──────────────────────────────────────
 import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
-import '../models/models.dart';
 
 // ── EcoButton ────────────────────────────────────────────────
 class EcoButton extends StatelessWidget {
@@ -34,15 +33,24 @@ class EcoButton extends StatelessWidget {
               color: Colors.white,
             ),
           )
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 18),
-                const SizedBox(width: 8),
+        : FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 18),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
               ],
-              Text(text),
-            ],
+            ),
           );
 
     if (outline) {
