@@ -4,11 +4,14 @@ const { protect, adminOnly } = require('../middleware/auth');
 
 // Users
 router.get('/users', protect, adminOnly, adminController.getAllUsers);
+router.put('/users/:id', protect, adminOnly, adminController.updateUserProfile);
 router.put('/users/:id/toggle', protect, adminOnly, adminController.toggleUserActive);
 router.put('/users/:id/role', protect, adminOnly, adminController.changeUserRole);
+router.delete('/users/:id', protect, adminOnly, adminController.deleteUser);
 
 // Collector Profiles
 router.get('/collectors/profiles', protect, adminOnly, adminController.getAllCollectorProfiles);
+router.post('/collectors/profiles', protect, adminOnly, adminController.createCollectorProfile);
 router.put('/collectors/profiles/:id', protect, adminOnly, adminController.updateCollectorProfile);
 
 // Reports

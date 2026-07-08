@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import '../../services/api_service.dart';
 import '../../utils/app_theme.dart';
@@ -17,7 +17,7 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
   String _category = '', _unit = 'kg';
   ScrapMapSelection? _pickupLocation;
   bool _loading = false;
-  List<File> _selectedImages = [];
+  final List<_SelectedScrapImage> _selectedImages = [];
   final _imagePicker = ImagePicker();
   
   static const _maxImageSize = 5 * 1024 * 1024; // 5MB
@@ -45,11 +45,10 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
       
       if (pickedFile == null) return;
       
-      final file = File(pickedFile.path);
-      final bytes = await file.length();
+      final bytes = await pickedFile.readAsBytes();
       
       // Validate file size
-      if (bytes > _maxImageSize) {
+      if (bytes.length > _maxImageSize) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Image size must be less than 5MB'), backgroundColor: AppColors.red)
@@ -59,7 +58,7 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
       }
       
       // Validate file type
-      final mimeType = _getMimeType(pickedFile.path);
+      final mimeType = pickedFile.mimeType ?? _getMimeType(pickedFile.name.isNotEmpty ? pickedFile.name : pickedFile.path);
       if (!_allowedMimes.contains(mimeType)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -73,13 +72,13 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
       if (_selectedImages.length >= _maxImages) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Maximum $_maxImages images allowed'), backgroundColor: AppColors.red)
+            const SnackBar(content: Text('Maximum 5 images allowed'), backgroundColor: AppColors.red)
           );
         }
         return;
       }
       
-      setState(() => _selectedImages.add(file));
+      setState(() => _selectedImages.add(_SelectedScrapImage(file: pickedFile, bytes: bytes)));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -138,12 +137,12 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
           'lat': _pickupLocation!.lat,
           'lng': _pickupLocation!.lng,
         },
-        photos: _selectedImages.isNotEmpty ? _selectedImages : null,
+        photos: _selectedImages.isNotEmpty ? _selectedImages.map((image) => image.file).toList() : null,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Scrap submitted! Awaiting approval 🌱'), backgroundColor: AppColors.green600));
         _desc.clear(); _qty.clear();
-        setState(() { _category = ''; _pickupLocation = null; _selectedImages = []; });
+        setState(() { _category = ''; _pickupLocation = null; _selectedImages.clear(); });
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
@@ -171,9 +170,9 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
               child: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: sel ? AppColors.green500.withOpacity(0.12) : AppColors.bgCard,
+                  color: sel ? AppColors.green500.withValues(alpha: 0.12) : AppColors.bgCard,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: sel ? AppColors.green500.withOpacity(0.4) : AppColors.border),
+                  border: Border.all(color: sel ? AppColors.green500.withValues(alpha: 0.4) : AppColors.border),
                 ),
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Text(c['e']!, style: const TextStyle(fontSize: 28)),
@@ -194,7 +193,7 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
             const Text('Unit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted, letterSpacing: 0.04)),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              value: _unit, dropdownColor: AppColors.bgCard,
+              initialValue: _unit, dropdownColor: AppColors.bgCard,
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
               decoration: const InputDecoration(),
               items: ['kg','pieces','liters'].map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
@@ -212,7 +211,7 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
             decoration: BoxDecoration(
               color: AppColors.bgCard,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _pickupLocation == null ? AppColors.border : AppColors.green500.withOpacity(0.45)),
+              border: Border.all(color: _pickupLocation == null ? AppColors.border : AppColors.green500.withValues(alpha: 0.45)),
             ),
             child: Row(children: [
               Icon(Icons.map_outlined, color: _pickupLocation == null ? AppColors.textMuted : AppColors.green400, size: 22),
@@ -237,7 +236,7 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
         const SizedBox(height: 16),
         if (_pts > 0) Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: AppColors.green500.withOpacity(0.06), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.green500.withOpacity(0.2))),
+          decoration: BoxDecoration(color: AppColors.green500.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.green500.withValues(alpha: 0.2))),
           child: Row(children: [
             const Text('🏆', style: TextStyle(fontSize: 22)), const SizedBox(width: 10),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -248,7 +247,7 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
         ),
         const SizedBox(height: 10),
         Container(padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: AppColors.blue.withOpacity(0.06), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.blue.withOpacity(0.15))),
+          decoration: BoxDecoration(color: AppColors.blue.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.blue.withValues(alpha: 0.15))),
           child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(Icons.info_outline, color: AppColors.blue, size: 15), SizedBox(width: 8),
             Expanded(child: Text('Our team will contact you for collection. EcoPoints are awarded after verification.', style: TextStyle(fontSize: 12, color: AppColors.textMuted, height: 1.5))),
@@ -261,16 +260,16 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              border: Border.all(color: AppColors.green500.withOpacity(0.3), width: 2),
+              border: Border.all(color: AppColors.green500.withValues(alpha: 0.3), width: 2),
               borderRadius: BorderRadius.circular(12),
-              color: AppColors.green500.withOpacity(0.04),
+              color: AppColors.green500.withValues(alpha: 0.04),
             ),
             child: Center(
               child: Column(
                 children: [
-                  Icon(Icons.image_outlined, size: 32, color: AppColors.green500),
+                  const Icon(Icons.image_outlined, size: 32, color: AppColors.green500),
                   const SizedBox(height: 8),
-                  Text('Tap to add photos (${_selectedImages.length}/$_maxImages)', style: TextStyle(fontSize: 13, color: AppColors.green500, fontWeight: FontWeight.w500)),
+                  Text('Tap to add photos (${_selectedImages.length}/$_maxImages)', style: const TextStyle(fontSize: 13, color: AppColors.green500, fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
@@ -287,7 +286,12 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.file(_selectedImages[idx], fit: BoxFit.cover),
+                  child: Image.memory(
+                    _selectedImages[idx].bytes,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
                 ),
                 Positioned(
                   top: 4, right: 4,
@@ -295,7 +299,7 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
                     onTap: () => _removeImage(idx),
                     child: Container(
                       padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(color: AppColors.red.withOpacity(0.8), shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: AppColors.red.withValues(alpha: 0.8), shape: BoxShape.circle),
                       child: const Icon(Icons.close, size: 16, color: Colors.white),
                     ),
                   ),
@@ -310,4 +314,14 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
       ])),
     ),
   );
+}
+
+class _SelectedScrapImage {
+  final XFile file;
+  final Uint8List bytes;
+
+  const _SelectedScrapImage({
+    required this.file,
+    required this.bytes,
+  });
 }

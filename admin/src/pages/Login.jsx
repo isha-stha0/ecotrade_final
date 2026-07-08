@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogIn, Leaf, ShieldAlert } from 'lucide-react';
+import { LogIn, ShieldAlert } from 'lucide-react';
+
+const ECOTRADE_LOGO = '/Eco%20Trade%20Logo-04.jpg.jpeg';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -54,11 +56,19 @@ const Login = () => {
           width: '60px',
           height: '60px',
           borderRadius: '16px',
-          background: 'rgba(16, 185, 129, 0.08)',
-          color: 'var(--primary)',
+          background: '#ffffff',
+          overflow: 'hidden',
           marginBottom: '1.5rem',
         }}>
-          <Leaf size={32} />
+          <img
+            src={ECOTRADE_LOGO}
+            alt="EcoTrade logo"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+            }}
+          />
         </div>
 
         <h1 style={{

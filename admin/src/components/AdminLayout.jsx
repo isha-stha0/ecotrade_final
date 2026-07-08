@@ -10,12 +10,13 @@ import {
   ClipboardList, 
   BarChart3, 
   MessageSquareWarning, 
-  Leaf, 
   Menu, 
   X,
   User as UserIcon,
   ChevronDown
 } from 'lucide-react';
+
+const ECOTRADE_LOGO = '/Eco%20Trade%20Logo-04.jpg.jpeg';
 
 // ProfileMenu declared at module scope to avoid creating components during render
 const ProfileMenu = ({ user, onLogout }) => {
@@ -74,16 +75,17 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
+  const [riderOpen, setRiderOpen] = useState(() => ['/scrap-requests', '/delivery-requests'].includes(location.pathname));
 
   
 
   const menuItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-    { name: 'User Directory', path: '/users', icon: Users },
-    { name: 'Collector Profiles', path: '/collectors', icon: Truck },
-    { name: 'Scrap Requests', path: '/scrap-requests', icon: Recycle },
+    { name: 'User Accounts', path: '/users', icon: Users },
+    { name: 'Collector Riders', path: '/collectors', icon: Truck },
+    { name: 'Rider Dispatch', path: '/rider', icon: Truck, grouped: 'rider' },
     // Products menu will render as a grouped item below
-    { name: 'Products Store', path: '/products', icon: ShoppingBag, grouped: true },
+    { name: 'Products Store', path: '/products', icon: ShoppingBag, grouped: 'products' },
     { name: 'Sales Orders', path: '/orders', icon: ClipboardList },
     { name: 'Analytics Reports', path: '/reports', icon: BarChart3 },
     { name: 'Complaints & Feedback', path: '/complaints', icon: MessageSquareWarning },
@@ -150,15 +152,25 @@ const AdminLayout = () => {
           gap: '0.75rem'
         }}>
           <div style={{
-            background: 'rgba(16, 185, 129, 0.08)',
-            color: 'var(--primary)',
-            padding: '0.4rem',
+            background: '#ffffff',
+            width: '38px',
+            height: '38px',
             borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            overflow: 'hidden',
+            flexShrink: 0
           }}>
-            <Leaf size={22} />
+            <img
+              src={ECOTRADE_LOGO}
+              alt="EcoTrade logo"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+              }}
+            />
           </div>
           <span style={{
             fontSize: '1.2rem',
@@ -179,12 +191,17 @@ const AdminLayout = () => {
         }}>
           {menuItems.map((item) => {
             if (item.grouped) {
-              // render products grouped menu
-              const isActive = location.pathname.startsWith('/products');
+              const isProducts = item.grouped === 'products';
+              const isRider = item.grouped === 'rider';
+              const isOpen = isProducts ? productsOpen : riderOpen;
+              const setOpen = isProducts ? setProductsOpen : setRiderOpen;
+              const isActive = isProducts
+                ? location.pathname.startsWith('/products')
+                : ['/scrap-requests', '/delivery-requests'].includes(location.pathname);
               return (
-                <div key="products-group" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div key={`${item.grouped}-group`} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <button
-                    onClick={() => setProductsOpen((s) => !s)}
+                    onClick={() => setOpen((s) => !s)}
                     className="nav-link"
                     style={{
                       display: 'flex',
@@ -206,10 +223,20 @@ const AdminLayout = () => {
                     <ChevronDown size={16} />
                   </button>
 
-                  {productsOpen && (
+                  {isOpen && isProducts && (
                     <div style={{ paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <Link to="/products" onClick={() => setMobileOpen(false)} className="nav-link" style={{ padding: '0.5rem 0.75rem', borderRadius: 8 }}>All Products</Link>
                       <Link to="/products/new" onClick={() => setMobileOpen(false)} className="nav-link" style={{ padding: '0.5rem 0.75rem', borderRadius: 8 }}>Add Product</Link>
+                    </div>
+                  )}
+                  {isOpen && isRider && (
+                    <div style={{ paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <Link to="/scrap-requests" onClick={() => setMobileOpen(false)} className="nav-link" style={{ padding: '0.5rem 0.75rem', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Recycle size={15} /> Scrap Requests
+                      </Link>
+                      <Link to="/delivery-requests" onClick={() => setMobileOpen(false)} className="nav-link" style={{ padding: '0.5rem 0.75rem', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <ClipboardList size={15} /> Delivery Requests
+                      </Link>
                     </div>
                   )}
                 </div>

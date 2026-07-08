@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
+import 'package:http_parser/http_parser.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_theme.dart';
 import '../models/models.dart';
@@ -87,7 +89,39 @@ class ApiService {
   }
 
   // ── Scrap ───────────────────────────────────────────────────
-  Future<ScrapModel> submitScrap(Map<String, dynamic> data, {List<File>? photos}) async {
+  String _mimeTypeForImage(XFile photo) {
+    if (photo.mimeType != null && photo.mimeType!.isNotEmpty) {
+      return photo.mimeType!;
+    }
+    final ext = photo.name.split('.').last.toLowerCase();
+    if (ext == 'png') return 'image/png';
+    return 'image/jpeg';
+  }
+
+  String _extensionForImage(XFile photo) {
+    final mimeType = _mimeTypeForImage(photo);
+    if (mimeType == 'image/png') return 'png';
+    return 'jpg';
+  }
+
+  String _safeFilenameForImage(XFile photo, int index) {
+    final ext = _extensionForImage(photo);
+    final originalName = photo.name.isNotEmpty ? photo.name : 'scrap_photo';
+    final filename = originalName.split(RegExp(r'[\\/]')).last;
+    final dotIndex = filename.lastIndexOf('.');
+    final nameWithoutExt = dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
+    var safeBase = nameWithoutExt
+        .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_+|_+$'), '');
+
+    if (safeBase.isEmpty) safeBase = 'scrap_photo';
+    if (safeBase.length > 48) safeBase = safeBase.substring(0, 48);
+
+    return '${safeBase}_${DateTime.now().microsecondsSinceEpoch}_$index.$ext';
+  }
+
+  Future<ScrapModel> submitScrap(Map<String, dynamic> data, {List<XFile>? photos}) async {
     final headers = await _headers;
     
     // If no photos, use JSON encoding for backward compatibility
@@ -112,10 +146,16 @@ class ApiService {
       request.fields[key] = value.toString();
     });
     
-    // Add photos
-    for (final photo in photos) {
+    for (var i = 0; i < photos.length; i++) {
+      final photo = photos[i];
+      final bytes = await photo.readAsBytes();
       request.files.add(
-        await http.MultipartFile.fromPath('photos', photo.path),
+        http.MultipartFile.fromBytes(
+          'photos',
+          bytes,
+          filename: _safeFilenameForImage(photo, i + 1),
+          contentType: MediaType.parse(_mimeTypeForImage(photo)),
+        ),
       );
     }
     

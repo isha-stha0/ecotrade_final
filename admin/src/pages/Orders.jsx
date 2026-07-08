@@ -1,14 +1,32 @@
 import { useState, useEffect, useCallback } from 'react';
 import { orderAPI } from '../api/api';
-import { Loader2, Eye, CreditCard, MapPin } from 'lucide-react';
+import { Loader2, Eye, CreditCard, MapPin, Package, Receipt, ShoppingBag, User, CalendarDays } from 'lucide-react';
+
+const statusTone = (status) => {
+  if (status === 'delivered' || status === 'paid') return 'success';
+  if (status === 'cancelled' || status === 'failed' || status === 'refunded') return 'danger';
+  if (status === 'pending') return 'pending';
+  return 'info';
+};
+
+const formatAddress = (address) => {
+  if (!address) return 'Not specified';
+  if (typeof address === 'string') return address;
+  return [
+    address.fullName || address.name,
+    address.addressLine || address.street || address.address,
+    address.city,
+    address.state,
+    address.postalCode || address.zip,
+    address.phone,
+  ].filter(Boolean).join(', ') || JSON.stringify(address);
+};
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  
-  // Selected order details modal
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [orderStatus, setOrderStatus] = useState('pending');
@@ -35,10 +53,10 @@ const Orders = () => {
     return () => { mounted = false; };
   }, [fetchOrders]);
 
-  const handleOpenDetails = (o) => {
-    setSelectedOrder(o);
-    setOrderStatus(o.order_status || 'pending');
-    setPaymentStatus(o.payment_status || 'pending');
+  const handleOpenDetails = (order) => {
+    setSelectedOrder(order);
+    setOrderStatus(order.order_status || 'pending');
+    setPaymentStatus(order.payment_status || 'pending');
     setShowDetailsModal(true);
   };
 
@@ -47,7 +65,7 @@ const Orders = () => {
     setActionLoading(true);
     try {
       await orderAPI.updateStatus(selectedOrder._id, orderStatus, paymentStatus);
-      fetchOrders();
+      await fetchOrders();
       setShowDetailsModal(false);
       setSelectedOrder(null);
     } catch (err) {
@@ -57,118 +75,123 @@ const Orders = () => {
     }
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      {/* Page Header */}
-      <div>
-        <h1 style={{ fontSize: '2rem', margin: 0 }}>Sales Orders</h1>
-  <p style={{ color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>Fulfill store product orders, update shipping routes, and log cash/card payment completions</p>
-      </div>
+  const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
+  const paidOrders = orders.filter((order) => order.payment_status === 'paid').length;
+  const pendingOrders = orders.filter((order) => order.order_status === 'pending').length;
 
-      {/* Filter Options */}
-      <div className="card" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>Filter Order:</span>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {[
-            { value: '', label: 'All Orders' },
-            { value: 'pending', label: 'Pending' },
-            { value: 'confirmed', label: 'Confirmed' },
-            { value: 'shipped', label: 'Shipped' },
-            { value: 'delivered', label: 'Delivered' },
-            { value: 'cancelled', label: 'Cancelled' }
-          ].map((btn) => (
-            <button
-              key={btn.value}
-              onClick={() => setStatusFilter(btn.value)}
-              className={`btn ${statusFilter === btn.value ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
-            >
-              {btn.label}
-            </button>
-          ))}
+  return (
+    <div className="directory-page">
+      <section className="directory-hero">
+        <div className="directory-hero-copy">
+          <span className="directory-eyebrow">Store Fulfillment</span>
+          <h1>Sales Orders</h1>
+          <p>Review customer product orders, payment state, shipping address, and fulfillment status.</p>
+        </div>
+        <div className="directory-hero-badge">
+          <ShoppingBag size={20} />
+          <span>{orders.length}</span>
+          <small>orders</small>
+        </div>
+      </section>
+
+      <div className="directory-stats">
+        <div className="directory-stat">
+          <span className="stat-icon stat-icon-green"><Receipt size={18} /></span>
+          <div><strong>Rs. {totalRevenue}</strong><small>Total shown</small></div>
+        </div>
+        <div className="directory-stat">
+          <span className="stat-icon stat-icon-blue"><CreditCard size={18} /></span>
+          <div><strong>{paidOrders}</strong><small>Paid orders</small></div>
+        </div>
+        <div className="directory-stat">
+          <span className="stat-icon stat-icon-amber"><Package size={18} /></span>
+          <div><strong>{pendingOrders}</strong><small>Pending orders</small></div>
         </div>
       </div>
 
-      {/* Main Table */}
+      <div className="card" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        {[
+          { value: '', label: 'All Orders' },
+          { value: 'pending', label: 'Pending' },
+          { value: 'confirmed', label: 'Confirmed' },
+          { value: 'shipped', label: 'Shipped' },
+          { value: 'delivered', label: 'Delivered' },
+          { value: 'cancelled', label: 'Cancelled' },
+        ].map((btn) => (
+          <button
+            key={btn.value}
+            onClick={() => setStatusFilter(btn.value)}
+            className={`btn ${statusFilter === btn.value ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '0.45rem 0.9rem', fontSize: '0.84rem' }}
+          >
+            {btn.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
           <Loader2 size={36} className="animate-spin" style={{ color: '#10b981' }} />
         </div>
       ) : (
-        <div className="table-container">
+        <div className="table-container directory-table">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Order ID</th>
+                <th>Order</th>
                 <th>Customer</th>
-                <th>Purchased Items</th>
+                <th>Items</th>
                 <th>Total Bill</th>
                 <th>Order Status</th>
-                <th>Payment Status</th>
-                <th>Date Placed</th>
-                <th>Actions</th>
+                <th>Payment</th>
+                <th>Date</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {orders.length > 0 ? (
                 orders.map((order) => (
-                  <tr key={order._id}>
-                    {/* Order ID */}
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                      #{order._id.slice(-6).toUpperCase()}
-                    </td>
-                    
-                    {/* User */}
+                  <tr key={order._id} className="directory-row">
                     <td>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 600 }}>{order.user_id?.full_name || 'Guest User'}</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{order.user_id?.email || '—'}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <strong style={{ fontFamily: 'monospace' }}>#{order._id.slice(-8).toUpperCase()}</strong>
+                        <span className="text-muted" style={{ fontSize: '0.78rem' }}>{order.payment_method?.replace(/_/g, ' ') || 'cash on delivery'}</span>
                       </div>
                     </td>
-
-                    {/* Items brief */}
                     <td>
-                      <span style={{ fontSize: '0.9rem' }}>
-                        {order.items?.length || 0} product(s)
-                      </span>
+                      <div className="profile-cell">
+                        <div className="profile-avatar"><User size={17} /></div>
+                        <div>
+                          <div style={{ fontWeight: 700 }}>{order.user_id?.full_name || 'Guest User'}</div>
+                          <span className="text-muted">{order.user_id?.email || order.user_id?.phone || 'No contact'}</span>
+                        </div>
+                      </div>
                     </td>
-
-                    {/* Total */}
-                    <td style={{ fontWeight: 700, color: '#ffffff' }}>
-                      Rs. {order.total_amount || 0}
-                    </td>
-
-                    {/* Order Status Badge */}
                     <td>
-                      <span className={`badge badge-${
-                        order.order_status === 'pending' ? 'pending' : 
-                        (order.order_status === 'delivered' ? 'success' : 
-                        (order.order_status === 'cancelled' ? 'danger' : 'info'))
-                      }`}>
-                        {order.order_status}
-                      </span>
+                      <span className="order-item-pill">{order.items?.length || 0} product(s)</span>
                     </td>
-
-                    {/* Payment status badge */}
                     <td>
-                      <span className={`badge badge-${order.payment_status === 'paid' ? 'success' : 'pending'}`}>
-                        {order.payment_status}
-                      </span>
+                      <span className="order-total-pill">Rs. {order.total_amount || 0}</span>
                     </td>
-
-                    {/* Date */}
-                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      {new Date(order.createdAt).toLocaleDateString()}
+                    <td>
+                      <span className={`badge badge-${statusTone(order.order_status)}`}>{order.order_status}</span>
                     </td>
-
-                    {/* Actions */}
+                    <td>
+                      <span className={`badge badge-${statusTone(order.payment_status)}`}>{order.payment_status}</span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                        <CalendarDays size={14} />
+                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '-'}
+                      </div>
+                    </td>
                     <td>
                       <button
                         onClick={() => handleOpenDetails(order)}
-                        className="btn btn-secondary btn-icon"
-                        title="View Details & Update"
+                        className="action-icon-btn"
+                        title="View order details"
                       >
-                        <Eye size={14} />
+                        <Eye size={13} />
                       </button>
                     </td>
                   </tr>
@@ -176,7 +199,7 @@ const Orders = () => {
               ) : (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
-                    No matching sales orders in DB.
+                    No matching sales orders found.
                   </td>
                 </tr>
               )}
@@ -185,156 +208,92 @@ const Orders = () => {
         </div>
       )}
 
-      {/* Details & Status Modal */}
       {showDetailsModal && selectedOrder && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '600px' }}>
+          <div className="modal-content order-modal">
             <div className="modal-header">
-              <h3 style={{ margin: 0 }}>Order Details — #{selectedOrder._id.slice(-8).toUpperCase()}</h3>
-              <button 
+              <div>
+                <h3 style={{ margin: 0 }}>Order #{selectedOrder._id.slice(-8).toUpperCase()}</h3>
+                <span className="text-muted">Placed {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleString() : '-'}</span>
+              </div>
+              <button
                 onClick={() => { setShowDetailsModal(false); setSelectedOrder(null); }}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.25rem' }}
               >
                 &times;
               </button>
             </div>
-            
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              
-              {/* Product items purchased */}
-              <div>
-                <h4 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: '0 0 0.75rem 0', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                  Purchased Items
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+
+            <div className="modal-body order-modal-body">
+              <div className="order-summary-strip">
+                <div><small>Total Bill</small><strong>Rs. {selectedOrder.total_amount || 0}</strong></div>
+                <div><small>Payment</small><strong>{selectedOrder.payment_status}</strong></div>
+                <div><small>Status</small><strong>{selectedOrder.order_status}</strong></div>
+              </div>
+
+              <section>
+                <h4 className="order-section-title">Purchased Items</h4>
+                <div className="order-items-list">
                   {selectedOrder.items?.map((item, idx) => (
-                    <div key={idx} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      background: 'rgba(0,0,0,0.03)',
-                      padding: '0.75rem 1rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-color)'
-                    }}>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                          {item.product_id?.name || 'Eco Product'}
-                        </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          Qty: {item.quantity} &times; Rs. {item.price_at_time}
-                        </span>
+                    <div key={idx} className="order-item-row">
+                      <div>
+                        <strong>{item.product_id?.name || 'Eco Product'}</strong>
+                        <span>Qty: {item.quantity} x Rs. {item.price_at_time}</span>
                       </div>
-                      <span style={{ fontWeight: 700 }}>
-                        Rs. {item.subtotal || (item.quantity * item.price_at_time)}
-                      </span>
+                      <strong>Rs. {item.subtotal || (item.quantity * item.price_at_time)}</strong>
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
 
-              {/* Cost break down */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '1rem',
-                borderTop: '1px solid rgba(255,255,255,0.05)',
-                paddingTop: '1rem'
-              }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Subtotal:</span>
-                  <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>Rs. {selectedOrder.subtotal_amount || 0}</span>
+              <section className="order-info-grid">
+                <div>
+                  <MapPin size={16} />
+                  <span><strong>Shipping:</strong> {formatAddress(selectedOrder.shipping_address)}</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Discounts / Eco-points Used:</span>
-                  <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#10b981' }}>- Rs. {selectedOrder.discount_amount || 0}</span>
+                <div>
+                  <CreditCard size={16} />
+                  <span><strong>Payment Method:</strong> {selectedOrder.payment_method?.replace(/_/g, ' ') || 'cash on delivery'}</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', gridColumn: 'span 2' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Bill:</span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)' }}>Rs. {selectedOrder.total_amount || 0}</span>
-                </div>
-              </div>
+              </section>
 
-              {/* Delivery info & shipping */}
-              <div style={{ 
-                borderTop: '1px solid rgba(255,255,255,0.05)', 
-                paddingTop: '1rem',
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: '0.6rem',
-                fontSize: '0.9rem',
-                color: 'var(--text-muted)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <MapPin size={16} style={{ color: 'var(--text-muted)' }} />
-                  <span>Shipping Address: {selectedOrder.shipping_address || 'Not Specified'}</span>
+              {selectedOrder.delivery_notes && (
+                <div className="alert alert-warning" style={{ marginBottom: 0 }}>
+                  <strong>Delivery note:</strong> {selectedOrder.delivery_notes}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <CreditCard size={16} style={{ color: 'var(--text-muted)' }} />
-                  <span>Payment Method: <span style={{ textTransform: 'capitalize' }}>{selectedOrder.payment_method?.replace(/_/g, ' ') || 'cash_on_delivery'}</span></span>
-                </div>
-                {selectedOrder.delivery_notes && (
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', background: 'rgba(245, 158, 11, 0.05)', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.1)' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 600, flexShrink: 0 }}>Driver Note:</span>
-                    <span style={{ fontSize: '0.8rem', color: '#e2e8f0' }}>{selectedOrder.delivery_notes}</span>
-                  </div>
-                )}
-              </div>
+              )}
 
-              {/* Edit status actions */}
-              <div style={{ 
-                borderTop: '1px solid rgba(255,255,255,0.05)', 
-                paddingTop: '1rem',
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '1rem'
-              }}>
+              <section className="order-status-grid">
                 <div className="form-group">
-                  <label className="form-label">Order Fulfillment Status</label>
-                  <select
-                    className="form-control"
-                    value={orderStatus}
-                    onChange={(e) => setOrderStatus(e.target.value)}
-                    disabled={actionLoading}
-                  >
+                  <label className="form-label">Order Status</label>
+                  <select className="form-control" value={orderStatus} onChange={(e) => setOrderStatus(e.target.value)} disabled={actionLoading}>
                     <option value="pending">Pending</option>
                     <option value="confirmed">Confirmed</option>
+                    <option value="processing">Processing</option>
                     <option value="shipped">Shipped</option>
                     <option value="delivered">Delivered</option>
                     <option value="cancelled">Cancelled</option>
+                    <option value="refunded">Refunded</option>
                   </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Payment Status</label>
-                  <select
-                    className="form-control"
-                    value={paymentStatus}
-                    onChange={(e) => setPaymentStatus(e.target.value)}
-                    disabled={actionLoading}
-                  >
+                  <select className="form-control" value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)} disabled={actionLoading}>
                     <option value="pending">Pending</option>
                     <option value="paid">Paid</option>
+                    <option value="failed">Failed</option>
                     <option value="refunded">Refunded</option>
                   </select>
                 </div>
-              </div>
-
+              </section>
             </div>
-            
+
             <div className="modal-footer">
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => { setShowDetailsModal(false); setSelectedOrder(null); }}
-                disabled={actionLoading}
-              >
+              <button className="btn btn-secondary" onClick={() => { setShowDetailsModal(false); setSelectedOrder(null); }} disabled={actionLoading}>
                 Cancel
               </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={handleUpdateStatus}
-                disabled={actionLoading}
-              >
-                {actionLoading ? 'Saving...' : 'Update Order Status'}
+              <button className="btn btn-primary" onClick={handleUpdateStatus} disabled={actionLoading}>
+                {actionLoading ? 'Saving...' : 'Update Order'}
               </button>
             </div>
           </div>

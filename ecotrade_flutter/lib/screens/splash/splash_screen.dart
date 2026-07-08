@@ -32,7 +32,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     await Future.delayed(const Duration(milliseconds: 1800));
     if (!mounted) return;
     final auth = context.read<AuthProvider>();
-    Navigator.of(context).pushReplacementNamed(auth.isLoggedIn ? '/main' : '/login');
+    Navigator.of(context).pushReplacementNamed(auth.isLoggedIn ? '/main' : '/onboarding');
   }
 
   @override void dispose() { _logo.dispose(); _text.dispose(); _spin.dispose(); super.dispose(); }
@@ -83,12 +83,12 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       AnimatedBuilder(
         animation: _text,
         builder: (_, __) => Opacity(opacity: _fade.value,
-          child: Padding(padding: const EdgeInsets.only(bottom: 52), child: Column(children: [
+          child: const Padding(padding: EdgeInsets.only(bottom: 52), child: Column(children: [
             SizedBox(width: 100, child: LinearProgressIndicator(
               backgroundColor: AppColors.border,
-              valueColor: const AlwaysStoppedAnimation(AppColors.green500), minHeight: 2)),
-            const SizedBox(height: 12),
-            const Text("Nepal's Green Marketplace 🌱", style: TextStyle(fontSize: 11, color: AppColors.textDim)),
+              valueColor: AlwaysStoppedAnimation(AppColors.green500), minHeight: 2)),
+            SizedBox(height: 12),
+            Text("Nepal's Green Marketplace 🌱", style: TextStyle(fontSize: 11, color: AppColors.textDim)),
           ])),
         ),
       ),

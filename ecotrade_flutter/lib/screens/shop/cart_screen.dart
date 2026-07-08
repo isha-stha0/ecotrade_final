@@ -84,12 +84,16 @@ class _CartProductImage extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
-      child: Image.network(
-        imageUrl!,
+      child: Container(
         width: 56,
         height: 56,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallback,
+        padding: const EdgeInsets.all(5),
+        color: Colors.white,
+        child: Image.network(
+          imageUrl!,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => fallback,
+        ),
       ),
     );
   }

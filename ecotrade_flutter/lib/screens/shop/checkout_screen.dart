@@ -169,9 +169,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const Row(children: [Icon(Icons.payment_outlined, color: AppColors.green400, size: 18), SizedBox(width: 8), Text('Payment Method', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary))]),
             const SizedBox(height: 12),
             ...[
-              {'v':'cod','l':'Cash on Delivery','i':'💵','d':'Pay when you receive'},
-              {'v':'esewa','l':'eSewa','i':'📱','d':'Pay through eSewa before order confirmation'},
-              {'v':'khalti','l':'Khalti','i':'💜','d':'Mobile payment'},
+              {'v':'cod','l':'Cash on Delivery', 'd':'Pay when you receive'},
+              {'v':'esewa','l':'eSewa', 'd':'Pay through eSewa before order confirmation'}
             ].map((m) => GestureDetector(
               onTap: () => setState(() => _payment = m['v']!),
               child: Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
@@ -181,7 +180,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   border: Border.all(color: _payment == m['v'] ? AppColors.green500.withOpacity(0.3) : AppColors.border),
                 ),
                 child: Row(children: [
-                  Text(m['i']!, style: const TextStyle(fontSize: 22)),
+                  Icon(
+                    m['v'] == 'esewa' ? Icons.account_balance_wallet_outlined : Icons.payments_outlined,
+                    color: _payment == m['v'] ? AppColors.green500 : AppColors.textMuted,
+                    size: 22,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(m['l']!, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _payment == m['v'] ? AppColors.green400 : AppColors.textPrimary)),

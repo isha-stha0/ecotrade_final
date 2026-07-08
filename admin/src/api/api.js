@@ -62,6 +62,10 @@ export const adminAPI = {
     const response = await api.get(`/api/admin/users${role ? `?role=${role}` : ''}`);
     return response.data;
   },
+  updateUserProfile: async (id, data) => {
+    const response = await api.put(`/api/admin/users/${id}`, data);
+    return response.data;
+  },
   toggleUserActive: async (id) => {
     const response = await api.put(`/api/admin/users/${id}/toggle`);
     return response.data;
@@ -70,10 +74,18 @@ export const adminAPI = {
     const response = await api.put(`/api/admin/users/${id}/role`, { role });
     return response.data;
   },
+  deleteUser: async (id) => {
+    const response = await api.delete(`/api/admin/users/${id}`);
+    return response.data;
+  },
 
   // Collector Profiles
   getCollectorProfiles: async () => {
     const response = await api.get('/api/admin/collectors/profiles');
+    return response.data;
+  },
+  createCollectorProfile: async (data) => {
+    const response = await api.post('/api/admin/collectors/profiles', data);
     return response.data;
   },
   updateCollectorProfile: async (id, data) => {
@@ -176,6 +188,10 @@ export const orderAPI = {
   },
   updateStatus: async (id, orderStatus, paymentStatus) => {
     const response = await api.put(`/api/orders/${id}/status`, { orderStatus, paymentStatus });
+    return response.data;
+  },
+  assignCollector: async (id, collectorId) => {
+    const response = await api.put(`/api/orders/${id}/assign-collector`, { collectorId });
     return response.data;
   },
   placeOrder: async (payload) => {
