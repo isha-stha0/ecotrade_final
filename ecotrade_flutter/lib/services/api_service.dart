@@ -175,6 +175,14 @@ class ApiService {
     return _handle(res);
   }
 
+  Future<List<ScrapCategoryModel>> getScrapCategories() async {
+    final headers = await _headers;
+    final res = await _send(() => http.get(Uri.parse('$base/scrap/categories'), headers: headers));
+    final body = _handle(res);
+    final categories = body is List ? body : body['categories'] as List? ?? [];
+    return categories.map((e) => ScrapCategoryModel.fromJson(e)).toList();
+  }
+
   Future<void> updateScrapStatus(String id, String status, {String? notes, String? collectorId}) async {
     final res = await http.put(Uri.parse('$base/scrap/$id/status'),
         headers: await _headers,
@@ -263,27 +271,9 @@ class ApiService {
     return (_handle(res) as List).map((e) => OrderModel.fromJson(e)).toList();
   }
 
-  Future<Map<String, dynamic>> getAllOrders({String? status}) async {
-    final q = status != null && status.isNotEmpty ? '?status=$status' : '';
-    final res = await http.get(Uri.parse('$base/orders$q'), headers: await _headers);
-    return _handle(res);
-  }
-
-  Future<void> updateOrderStatus(String id, String status) async {
-    final res = await http.put(Uri.parse('$base/orders/$id/status'),
-        headers: await _headers, body: jsonEncode({'orderStatus': status}));
-    _handle(res);
-  }
-
   Future<Map<String, dynamic>> getMyDeliveries() async {
     final res = await http.get(Uri.parse('$base/orders/deliveries/my'), headers: await _headers);
     return _handle(res);
-  }
-
-  Future<void> assignOrderCollector(String orderId, String collectorId) async {
-    final res = await http.put(Uri.parse('$base/orders/$orderId/assign-collector'),
-        headers: await _headers, body: jsonEncode({'collectorId': collectorId}));
-    _handle(res);
   }
 
   Future<void> updateDeliveryStatus(String orderId, String status) async {
@@ -292,37 +282,23 @@ class ApiService {
     _handle(res);
   }
 
+  // ── Complaints ──────────────────────────────────────────────
+  Future<Map<String, dynamic>> submitComplaint(Map<String, dynamic> data) async {
+    final res = await http.post(Uri.parse('$base/complaints'),
+        headers: await _headers, body: jsonEncode(data));
+    return Map<String, dynamic>.from(_handle(res) as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> getMyComplaints() async {
+    final res = await http.get(Uri.parse('$base/complaints/my'), headers: await _headers);
+    return (_handle(res) as List)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
   // ── Dashboard ───────────────────────────────────────────────
   Future<Map<String, dynamic>> getUserDashboard() async {
     final res = await http.get(Uri.parse('$base/dashboard/user'), headers: await _headers);
     return _handle(res);
-  }
-
-  Future<Map<String, dynamic>> getAdminDashboard() async {
-    final res = await http.get(Uri.parse('$base/dashboard/admin'), headers: await _headers);
-    return _handle(res);
-  }
-
-  // ── Admin ───────────────────────────────────────────────────
-  Future<Map<String, dynamic>> getUsers({String? role}) async {
-    final q = role != null && role.isNotEmpty ? '?role=$role' : '';
-    final res = await http.get(Uri.parse('$base/admin/users$q'), headers: await _headers);
-    return _handle(res);
-  }
-
-  Future<void> toggleUser(String id) async {
-    final res = await http.put(Uri.parse('$base/admin/users/$id/toggle'), headers: await _headers);
-    _handle(res);
-  }
-
-  Future<void> updateUserRole(String id, String role) async {
-    final res = await http.put(Uri.parse('$base/admin/users/$id/role'),
-        headers: await _headers, body: jsonEncode({'role': role}));
-    _handle(res);
-  }
-
-  Future<void> seedData() async {
-    final res = await http.post(Uri.parse('$base/admin/seed'), headers: await _headers);
-    _handle(res);
   }
 }

@@ -33,6 +33,7 @@ const scrapRequestSchema = new Schema(
       lng: { type: Number },
     },
     preferred_pickup_time: { type: Date, default: null },
+    description:         { type: String, default: '' },
     photos:             [{ type: String }],                     // Array of image URLs
     status: {
       type: String,

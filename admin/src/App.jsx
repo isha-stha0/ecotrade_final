@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Collectors from './pages/Collectors';
 import ScrapRequests from './pages/ScrapRequests';
+import ScrapCategories from './pages/ScrapCategories';
 import DeliveryRequests from './pages/DeliveryRequests';
 import Products from './pages/Products';
 import ProductForm from './pages/ProductForm';
@@ -33,6 +34,7 @@ function App() {
               <Route path="/users" element={<Users />} />
               <Route path="/collectors" element={<Collectors />} />
               <Route path="/scrap-requests" element={<ScrapRequests />} />
+              <Route path="/scrap-categories" element={<ScrapCategories />} />
               <Route path="/delivery-requests" element={<DeliveryRequests />} />
               <Route path="/products" element={<Products />} />
               <Route path="/products/new" element={<ProductForm mode="create" />} />

@@ -18,6 +18,7 @@ const handleUploadError = (err, req, res, next) => {
 };
 
 // Scrap submission and management
+router.get('/categories', protect, scrapController.getScrapCategories);
 router.post('/', protect, upload.array('photos', 5), handleUploadError, scrapController.submitScrapRequest);
 router.get('/my', protect, scrapController.getMyScrapRequests);
 router.get('/', protect, scrapController.getAllScrapRequests);

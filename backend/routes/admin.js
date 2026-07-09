@@ -9,6 +9,12 @@ router.put('/users/:id/toggle', protect, adminOnly, adminController.toggleUserAc
 router.put('/users/:id/role', protect, adminOnly, adminController.changeUserRole);
 router.delete('/users/:id', protect, adminOnly, adminController.deleteUser);
 
+// Scrap Categories
+router.get('/scrap-categories', protect, adminOnly, adminController.getScrapCategories);
+router.post('/scrap-categories', protect, adminOnly, adminController.createScrapCategory);
+router.put('/scrap-categories/:id', protect, adminOnly, adminController.updateScrapCategory);
+router.delete('/scrap-categories/:id', protect, adminOnly, adminController.deleteScrapCategory);
+
 // Collector Profiles
 router.get('/collectors/profiles', protect, adminOnly, adminController.getAllCollectorProfiles);
 router.post('/collectors/profiles', protect, adminOnly, adminController.createCollectorProfile);

@@ -136,9 +136,9 @@ class _CollectorScreenState extends State<CollectorScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.green500.withOpacity(0.08),
+                    color: AppColors.green500.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.green500.withOpacity(0.16)),
+                    border: Border.all(color: AppColors.green500.withValues(alpha: 0.16)),
                   ),
                   child: Row(children: [
                     Container(
@@ -313,7 +313,7 @@ class _DeliveryList extends StatelessWidget {
             EmptyState(
               emoji: '📦',
               title: 'No assigned deliveries',
-              subtitle: 'Product orders assigned by admin will appear here.',
+              subtitle: 'Product orders assigned for delivery will appear here.',
             ),
           ],
         ),

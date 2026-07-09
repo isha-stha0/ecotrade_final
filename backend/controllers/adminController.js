@@ -4,8 +4,52 @@ const CollectorProfile = require('../models/CollectorProfile');
 const Report = require('../models/Report');
 const ScheduledReport = require('../models/ScheduledReport');
 const ScrapRequest = require('../models/ScrapRequest');
+const ScrapCategory = require('../models/ScrapCategory');
 const Order = require('../models/Order');
 const reportScheduler = require('../services/reportScheduler');
+
+const defaultScrapCategories = [
+  { name: 'Paper', description: 'Newspapers, books, cartons, and clean paper waste', points_per_kg: 10, price_per_kg: 0, icon_url: 'description' },
+  { name: 'Plastic', description: 'Bottles, containers, wrappers, and mixed plastic', points_per_kg: 15, price_per_kg: 0, icon_url: 'recycling' },
+  { name: 'Glass', description: 'Bottles, jars, and glass pieces', points_per_kg: 12, price_per_kg: 0, icon_url: 'wine_bar' },
+  { name: 'Aluminum', description: 'Cans, foils, and light metal packaging', points_per_kg: 20, price_per_kg: 0, icon_url: 'inventory_2' },
+  { name: 'Electronics', description: 'Small e-waste, cables, and accessories', points_per_kg: 25, price_per_kg: 0, icon_url: 'devices' },
+  { name: 'Other', description: 'Other recyclable scrap accepted after review', points_per_kg: 5, price_per_kg: 0, icon_url: 'category' },
+];
+
+function titleFromCategoryKey(value) {
+  return (value || 'Other')
+    .toString()
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+async function ensureScrapCategoriesFromUsage() {
+  const existingCount = await ScrapCategory.countDocuments();
+  if (existingCount === 0) await ScrapCategory.insertMany(defaultScrapCategories);
+
+  const usedNames = await ScrapRequest.distinct('category', {
+    category: { $exists: true, $nin: [null, ''] },
+  });
+
+  const known = await ScrapCategory.find({}, 'name');
+  const knownNames = new Set(known.map((category) => category.name.toLowerCase()));
+  const missing = usedNames
+    .map(titleFromCategoryKey)
+    .filter((name) => name && !knownNames.has(name.toLowerCase()))
+    .map((name) => ({
+      name,
+      description: `Legacy category from existing scrap requests`,
+      points_per_kg: 5,
+      price_per_kg: 0,
+      icon_url: 'category',
+      is_active: true,
+    }));
+
+  if (missing.length > 0) await ScrapCategory.insertMany(missing);
+}
 
 // ──────────────────────────────────────────────────────────────
 // USERS
@@ -74,6 +118,71 @@ exports.deleteUser = async (req, res) => {
 
     await CollectorProfile.deleteOne({ user_id: user._id });
     res.json({ message: 'User deleted successfully', deletedUser: user });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+// ──────────────────────────────────────────────────────────────
+// SCRAP CATEGORIES
+// ──────────────────────────────────────────────────────────────
+exports.getScrapCategories = async (_req, res) => {
+  try {
+    await ensureScrapCategoriesFromUsage();
+    const categories = await ScrapCategory.find().sort({ is_active: -1, name: 1 });
+    res.json({ categories, total: categories.length });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+exports.createScrapCategory = async (req, res) => {
+  try {
+    const { name, description, points_per_kg, price_per_kg, icon_url, is_active } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ message: 'Category name is required' });
+
+    const exists = await ScrapCategory.findOne({ name: new RegExp(`^${name.trim()}$`, 'i') });
+    if (exists) return res.status(409).json({ message: 'Category already exists' });
+
+    const category = await ScrapCategory.create({
+      name: name.trim(),
+      description: description || '',
+      points_per_kg: Math.max(0, parseInt(points_per_kg, 10) || 0),
+      price_per_kg: Math.max(0, parseFloat(price_per_kg) || 0),
+      icon_url: icon_url || 'category',
+      is_active: is_active ?? true,
+    });
+    res.status(201).json(category);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+exports.updateScrapCategory = async (req, res) => {
+  try {
+    const { name, description, points_per_kg, price_per_kg, icon_url, is_active } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name.trim();
+    if (description !== undefined) update.description = description;
+    if (points_per_kg !== undefined) update.points_per_kg = Math.max(0, parseInt(points_per_kg, 10) || 0);
+    if (price_per_kg !== undefined) update.price_per_kg = Math.max(0, parseFloat(price_per_kg) || 0);
+    if (icon_url !== undefined) update.icon_url = icon_url;
+    if (is_active !== undefined) update.is_active = is_active;
+
+    const category = await ScrapCategory.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    if (!category) return res.status(404).json({ message: 'Category not found' });
+    res.json(category);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+exports.deleteScrapCategory = async (req, res) => {
+  try {
+    const category = await ScrapCategory.findById(req.params.id);
+    if (!category) return res.status(404).json({ message: 'Category not found' });
+
+    const inUse = await ScrapRequest.exists({ scrap_category_id: category._id });
+    if (inUse) {
+      category.is_active = false;
+      await category.save();
+      return res.json({ message: 'Category is used by scraps, so it was deactivated', category });
+    }
+
+    await category.deleteOne();
+    res.json({ message: 'Category deleted' });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 

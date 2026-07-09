@@ -36,7 +36,6 @@ class UserModel {
     isActive: j['isActive'] ?? j['is_active'] ?? true,
   );
 
-  bool get isAdmin => role == 'admin';
   bool get isCollector => role == 'collector';
 }
 
@@ -76,6 +75,46 @@ class ScrapModel {
       collector: collectorMap,
     );
   }
+}
+
+class ScrapCategoryModel {
+  final String id, name, description, icon;
+  final int pointsPerKg;
+  final double pricePerKg;
+  final bool isActive;
+
+  const ScrapCategoryModel({
+    required this.id,
+    required this.name,
+    this.description = '',
+    this.icon = 'category',
+    this.pointsPerKg = 0,
+    this.pricePerKg = 0,
+    this.isActive = true,
+  });
+
+  factory ScrapCategoryModel.fromJson(Map<String, dynamic> j) => ScrapCategoryModel(
+    id: j['_id'] ?? j['id'] ?? '',
+    name: j['name'] ?? '',
+    description: j['description'] ?? '',
+    icon: j['icon_url'] ?? j['icon'] ?? 'category',
+    pointsPerKg: (j['points_per_kg'] ?? j['pointsPerKg'] ?? 0) is num
+        ? (j['points_per_kg'] ?? j['pointsPerKg'] ?? 0).toInt()
+        : int.tryParse('${j['points_per_kg'] ?? j['pointsPerKg'] ?? 0}') ?? 0,
+    pricePerKg: (j['price_per_kg'] ?? j['pricePerKg'] ?? 0) is num
+        ? (j['price_per_kg'] ?? j['pricePerKg'] ?? 0).toDouble()
+        : double.tryParse('${j['price_per_kg'] ?? j['pricePerKg'] ?? 0}') ?? 0,
+    isActive: j['is_active'] ?? j['isActive'] ?? true,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'description': description,
+    'icon_url': icon,
+    'points_per_kg': pointsPerKg,
+    'price_per_kg': pricePerKg,
+    'is_active': isActive,
+  };
 }
 
 class ProductModel {

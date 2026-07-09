@@ -107,6 +107,24 @@ export const adminAPI = {
     return response.data;
   },
 
+  // Scrap Categories
+  getScrapCategories: async () => {
+    const response = await api.get('/api/admin/scrap-categories');
+    return response.data;
+  },
+  createScrapCategory: async (data) => {
+    const response = await api.post('/api/admin/scrap-categories', data);
+    return response.data;
+  },
+  updateScrapCategory: async (id, data) => {
+    const response = await api.put(`/api/admin/scrap-categories/${id}`, data);
+    return response.data;
+  },
+  deleteScrapCategory: async (id) => {
+    const response = await api.delete(`/api/admin/scrap-categories/${id}`);
+    return response.data;
+  },
+
   // Scheduled Reports
   getScheduledReports: async () => {
     const response = await api.get('/api/admin/scheduled-reports');
@@ -241,7 +259,7 @@ export const complaintAPI = {
     return response.data;
   },
   resolveComplaint: async (id, resolution) => {
-    const response = await api.put(`/api/complaints/${id}/resolve`, { resolution });
+    const response = await api.put(`/api/complaints/${id}/resolve`, { response: resolution });
     return response.data;
   },
 };

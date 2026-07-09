@@ -1,4 +1,5 @@
 const ScrapRequest = require('../models/ScrapRequest');
+const ScrapCategory = require('../models/ScrapCategory');
 const User = require('../models/User');
 const RewardTransaction = require('../models/RewardTransaction');
 const RecyclingWorkflow = require('../models/RecyclingWorkflow');
@@ -12,9 +13,61 @@ const {
   createMapMarker,
 } = require('../services/locationService');
 
+const defaultScrapCategories = [
+  { name: 'Paper', description: 'Newspapers, books, cartons, and clean paper waste', points_per_kg: 10, price_per_kg: 0, icon_url: 'description' },
+  { name: 'Plastic', description: 'Bottles, containers, wrappers, and mixed plastic', points_per_kg: 15, price_per_kg: 0, icon_url: 'recycling' },
+  { name: 'Glass', description: 'Bottles, jars, and glass pieces', points_per_kg: 12, price_per_kg: 0, icon_url: 'wine_bar' },
+  { name: 'Aluminum', description: 'Cans, foils, and light metal packaging', points_per_kg: 20, price_per_kg: 0, icon_url: 'inventory_2' },
+  { name: 'Electronics', description: 'Small e-waste, cables, and accessories', points_per_kg: 25, price_per_kg: 0, icon_url: 'devices' },
+  { name: 'Other', description: 'Other recyclable scrap accepted after review', points_per_kg: 5, price_per_kg: 0, icon_url: 'category' },
+];
+
+async function ensureDefaultScrapCategories() {
+  const count = await ScrapCategory.countDocuments();
+  if (count === 0) await ScrapCategory.insertMany(defaultScrapCategories);
+}
+
+function categoryKey(name) {
+  return (name || 'other').trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+async function findScrapCategory({ id, name }) {
+  if (id) {
+    const byId = await ScrapCategory.findById(id);
+    if (byId) return byId;
+  }
+  if (name) {
+    return ScrapCategory.findOne({ name: new RegExp(`^${name.trim()}$`, 'i') });
+  }
+  return null;
+}
+
+async function calculateCategoryPoints(scrap) {
+  const quantity = scrap.quantity_actual ?? scrap.quantity_estimated ?? 0;
+  let category = null;
+  if (scrap.scrap_category_id) {
+    category = await ScrapCategory.findById(scrap.scrap_category_id);
+  }
+  if (!category && scrap.category) {
+    category = await findScrapCategory({ name: scrap.category });
+  }
+  const pointsPerKg = category?.points_per_kg ?? scrap.calculatePoints() / Math.max(scrap.quantity_estimated || 1, 1);
+  return Math.floor(pointsPerKg * quantity);
+}
+
+exports.getScrapCategories = async (_req, res) => {
+  try {
+    await ensureDefaultScrapCategories();
+    const categories = await ScrapCategory.find({ is_active: true }).sort({ name: 1 });
+    res.json({ categories });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
 exports.submitScrapRequest = async (req, res) => {
   try {
-    const { category, description, quantity, location, sector_type, lat, lng, preferred_pickup_time } = req.body;
+    const { category, scrap_category_id, description, quantity, location, sector_type, lat, lng, preferred_pickup_time } = req.body;
+    await ensureDefaultScrapCategories();
+    const selectedCategory = await findScrapCategory({ id: scrap_category_id, name: category });
     
     const photoUrls = [];
     if (req.files && req.files.length > 0) {
@@ -27,7 +80,8 @@ exports.submitScrapRequest = async (req, res) => {
 
     const scrap = await ScrapRequest.create({
       user_id: req.user._id,
-      category: category || 'other',
+      scrap_category_id: selectedCategory?._id || null,
+      category: selectedCategory ? categoryKey(selectedCategory.name) : categoryKey(category),
       description: description || '',
       quantity_estimated: parseFloat(quantity || 0),
       pickup_address: location || '',
@@ -44,7 +98,7 @@ exports.submitScrapRequest = async (req, res) => {
 
 exports.getMyScrapRequests = async (req, res) => {
   try {
-    const scraps = await ScrapRequest.find({ user_id: req.user._id }).sort('-createdAt');
+    const scraps = await ScrapRequest.find({ user_id: req.user._id }).populate('scrap_category_id').sort('-createdAt');
     res.json(scraps);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
@@ -63,6 +117,7 @@ exports.getAllScrapRequests = async (req, res) => {
     const scraps = await ScrapRequest.find(filter)
       .populate('user_id', 'full_name email phone')
       .populate('collector_id', 'full_name phone')
+      .populate('scrap_category_id')
       .sort('-createdAt');
 
     res.json({ scraps, total: scraps.length });
@@ -71,7 +126,10 @@ exports.getAllScrapRequests = async (req, res) => {
 
 exports.updateScrapStatus = async (req, res) => {
   try {
-    const { status, adminNotes, quantity_actual, collector_id } = req.body;
+    const { status, adminNotes, quantity_actual, collector_id, points_awarded } = req.body;
+    const requestedPoints = points_awarded !== undefined
+      ? Math.max(0, parseInt(points_awarded, 10) || 0)
+      : null;
     
     if (req.user.role !== 'admin' && req.user.role !== 'collector') {
       return res.status(403).json({ message: 'Unauthorized action' });
@@ -94,11 +152,19 @@ exports.updateScrapStatus = async (req, res) => {
     if (status === 'collected') scrap.collected_at = new Date();
     if (status === 'completed') scrap.completed_at = new Date();
 
-    if (status === 'approved' && scrap.points_awarded === 0) {
-      const pts = scrap.calculatePoints();
+    const shouldAwardPoints = (status === 'approved' || status === 'completed')
+      && !['approved', 'completed'].includes(oldStatus)
+      && scrap.points_awarded === 0;
+
+    if (shouldAwardPoints) {
+      const pts = requestedPoints ?? await calculateCategoryPoints(scrap);
       scrap.points_awarded = pts;
 
-      const updatedUser = await User.findByIdAndUpdate(scrap.user_id, { $inc: { reward_points: pts, totalScraps: scrap.quantity_estimated } }, { new: true });
+      const updatedUser = await User.findByIdAndUpdate(
+        scrap.user_id,
+        { $inc: { reward_points: pts, totalScraps: scrap.quantity_actual ?? scrap.quantity_estimated } },
+        { new: true },
+      );
       
       await RewardTransaction.create({
         user_id: scrap.user_id,
@@ -108,6 +174,8 @@ exports.updateScrapStatus = async (req, res) => {
         reference_id: scrap._id,
         balance_after: updatedUser ? updatedUser.reward_points : pts,
       });
+    } else if (requestedPoints !== null && scrap.points_awarded === 0) {
+      scrap.points_awarded = requestedPoints;
     }
 
     await scrap.save();

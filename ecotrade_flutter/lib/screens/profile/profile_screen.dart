@@ -22,7 +22,7 @@ class ProfileScreen extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: const LinearGradient(colors: [AppColors.green500, AppColors.green700]),
               borderRadius: BorderRadius.circular(22),
-              boxShadow: [BoxShadow(color: AppColors.green500.withOpacity(0.35), blurRadius: 20, offset: const Offset(0,6))],
+              boxShadow: [BoxShadow(color: AppColors.green500.withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0,6))],
             ),
             child: Center(child: Text(user.name[0].toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)))),
           const SizedBox(height: 12),
@@ -37,8 +37,8 @@ class ProfileScreen extends StatelessWidget {
         // EcoPoints banner
         Container(padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [AppColors.yellow.withOpacity(0.1), AppColors.green500.withOpacity(0.06)]),
-            borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.yellow.withOpacity(0.2)),
+            gradient: LinearGradient(colors: [AppColors.yellow.withValues(alpha: 0.1), AppColors.green500.withValues(alpha: 0.06)]),
+            borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.yellow.withValues(alpha: 0.2)),
           ),
           child: Row(children: [
             const Text('🏆', style: TextStyle(fontSize: 34)), const SizedBox(width: 12),
@@ -61,6 +61,13 @@ class ProfileScreen extends StatelessWidget {
         ]),
         const SizedBox(height: 12),
 
+        // Support section
+        _Section('Support', [
+          _Item(Icons.report_problem_outlined, 'Complain or Report Issue', AppColors.yellow, () => _complaintDialog(context)),
+          _Item(Icons.history_outlined, 'My Complaints', AppColors.purple, () => _myComplaintsDialog(context)),
+        ]),
+        const SizedBox(height: 12),
+
         // More section
         _Section('More', [
           _Item(Icons.info_outline, 'About EcoTrade', AppColors.textMuted, () => _showAbout(context)),
@@ -72,7 +79,7 @@ class ProfileScreen extends StatelessWidget {
         GestureDetector(
           onTap: () => _logoutDialog(context),
           child: Container(padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.red.withOpacity(0.06), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.red.withOpacity(0.2))),
+            decoration: BoxDecoration(color: AppColors.red.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.red.withValues(alpha: 0.2))),
             child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(Icons.logout_rounded, color: AppColors.red, size: 18), SizedBox(width: 10),
               Text('Logout', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.red)),
@@ -93,7 +100,13 @@ class ProfileScreen extends StatelessWidget {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
         ElevatedButton(
           style: ElevatedButton.styleFrom(backgroundColor: AppColors.red, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-          onPressed: () async { Navigator.pop(ctx); await context.read<AuthProvider>().logout(); Navigator.of(context).pushReplacementNamed('/login'); },
+          onPressed: () async {
+            final auth = context.read<AuthProvider>();
+            final nav = Navigator.of(context);
+            Navigator.pop(ctx);
+            await auth.logout();
+            nav.pushReplacementNamed('/login');
+          },
           child: const Text('Logout')),
       ],
     ));
@@ -146,6 +159,145 @@ class ProfileScreen extends StatelessWidget {
     ));
   }
 
+  void _complaintDialog(BuildContext context) {
+    final desc = TextEditingController();
+    var issueType = 'other';
+    bool loading = false;
+    const issueOptions = {
+      'collector_no_show': 'Collector no-show',
+      'wrong_weight': 'Wrong scrap weight',
+      'payment_issue': 'Payment issue',
+      'product_defect': 'Product defect',
+      'late_delivery': 'Late delivery',
+      'app_bug': 'App bug',
+      'other': 'Other',
+    };
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(
+      builder: (ctx, set) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Complain or Report Issue', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Issue Type', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            initialValue: issueType,
+            dropdownColor: AppColors.bgCard,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            decoration: const InputDecoration(),
+            items: issueOptions.entries
+                .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                .toList(),
+            onChanged: (value) => set(() => issueType = value ?? 'other'),
+          ),
+          const SizedBox(height: 12),
+          EcoTextField(
+            label: 'Describe the issue',
+            hint: 'Explain what happened so the admin can review it...',
+            controller: desc,
+            maxLines: 4,
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: loading ? null : () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
+          ElevatedButton(
+            onPressed: loading ? null : () async {
+              if (desc.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please describe the issue'), backgroundColor: AppColors.red));
+                return;
+              }
+              set(() => loading = true);
+              try {
+                await ApiService().submitComplaint({
+                  'issue_type': issueType,
+                  'description': desc.text.trim(),
+                });
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Complaint submitted for admin review'), backgroundColor: AppColors.green600));
+                }
+              } catch (e) {
+                if (ctx.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
+              } finally {
+                if (ctx.mounted) set(() => loading = false);
+              }
+            },
+            child: loading
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Submit'),
+          ),
+        ],
+      ),
+    ));
+  }
+
+  void _myComplaintsDialog(BuildContext context) {
+    const issueLabels = {
+      'collector_no_show': 'Collector no-show',
+      'wrong_weight': 'Wrong scrap weight',
+      'payment_issue': 'Payment issue',
+      'product_defect': 'Product defect',
+      'late_delivery': 'Late delivery',
+      'app_bug': 'App bug',
+      'other': 'Other',
+    };
+
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      backgroundColor: AppColors.bgCard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text('My Complaints', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: ApiService().getMyComplaints(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(height: 120, child: Center(child: CircularProgressIndicator(color: AppColors.green500)));
+            }
+            if (snapshot.hasError) {
+              return Text(snapshot.error.toString(), style: const TextStyle(color: AppColors.red));
+            }
+            final complaints = snapshot.data ?? [];
+            if (complaints.isEmpty) {
+              return const Text('No complaints submitted yet.', style: TextStyle(color: AppColors.textMuted));
+            }
+            return ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: complaints.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, index) {
+                  final complaint = complaints[index];
+                  final issueType = complaint['issue_type']?.toString() ?? 'other';
+                  final status = complaint['status']?.toString() ?? 'pending';
+                  final response = complaint['admin_response']?.toString();
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Expanded(child: Text(issueLabels[issueType] ?? issueType, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700))),
+                        StatusBadge(status),
+                      ]),
+                      const SizedBox(height: 5),
+                      Text(complaint['description']?.toString() ?? '', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                      if (response != null && response.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text('Admin response: $response', style: const TextStyle(color: AppColors.green400, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
+                    ]),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close', style: TextStyle(color: AppColors.green400)))],
+    ));
+  }
+
   void _showAbout(BuildContext context) {
     showDialog(context: context, builder: (_) => AlertDialog(
       backgroundColor: AppColors.bgCard, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -175,7 +327,7 @@ class _Item extends StatelessWidget {
   const _Item(this.i, this.l, this.c, this.t);
   @override Widget build(BuildContext context) => ListTile(
     onTap: t, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-    leading: Container(width: 34, height: 34, decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(9)), child: Icon(i, color: c, size: 17)),
+    leading: Container(width: 34, height: 34, decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)), child: Icon(i, color: c, size: 17)),
     title: Text(l, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
     trailing: const Icon(Icons.chevron_right, color: AppColors.textDim, size: 18),
   );

@@ -13,7 +13,8 @@ import {
   Menu, 
   X,
   User as UserIcon,
-  ChevronDown
+  ChevronDown,
+  Tags
 } from 'lucide-react';
 
 const ECOTRADE_LOGO = '/Eco%20Trade%20Logo-04.jpg.jpeg';
@@ -196,7 +197,7 @@ const AdminLayout = () => {
               const isOpen = isProducts ? productsOpen : riderOpen;
               const setOpen = isProducts ? setProductsOpen : setRiderOpen;
               const isActive = isProducts
-                ? location.pathname.startsWith('/products')
+                ? location.pathname.startsWith('/products') || location.pathname === '/scrap-categories'
                 : ['/scrap-requests', '/delivery-requests'].includes(location.pathname);
               return (
                 <div key={`${item.grouped}-group`} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -227,6 +228,9 @@ const AdminLayout = () => {
                     <div style={{ paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <Link to="/products" onClick={() => setMobileOpen(false)} className="nav-link" style={{ padding: '0.5rem 0.75rem', borderRadius: 8 }}>All Products</Link>
                       <Link to="/products/new" onClick={() => setMobileOpen(false)} className="nav-link" style={{ padding: '0.5rem 0.75rem', borderRadius: 8 }}>Add Product</Link>
+                      <Link to="/scrap-categories" onClick={() => setMobileOpen(false)} className="nav-link" style={{ padding: '0.5rem 0.75rem', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Tags size={15} /> Scrap Categories
+                      </Link>
                     </div>
                   )}
                   {isOpen && isRider && (
