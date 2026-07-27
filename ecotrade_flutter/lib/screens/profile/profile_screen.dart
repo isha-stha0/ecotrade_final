@@ -58,6 +58,7 @@ class ProfileScreen extends StatelessWidget {
         _Section('Account', [
           _Item(Icons.person_outline, 'Edit Profile', AppColors.green400, () => _editDialog(context, user.name, user.phone ?? '')),
           _Item(Icons.lock_outline, 'Change Password', AppColors.blue, () => _changePassDialog(context)),
+          _Item(Icons.notifications_outlined, 'Notifications', AppColors.purple, () => Navigator.of(context).pushNamed('/notifications')),
         ]),
         const SizedBox(height: 12),
 
@@ -132,28 +133,38 @@ class ProfileScreen extends StatelessWidget {
   }
 
   void _changePassDialog(BuildContext context) {
-    final cur = TextEditingController(), nw = TextEditingController();
+    final otp = TextEditingController(), nw = TextEditingController(), confirm = TextEditingController();
+    int stage = 0;
     bool loading = false;
     showDialog(context: context, builder: (ctx) => StatefulBuilder(
       builder: (ctx, set) => AlertDialog(
         backgroundColor: AppColors.bgCard, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+        title: Text(stage == 0 ? 'Verify your email' : (stage == 1 ? 'Enter verification code' : 'Create new password'), style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          EcoTextField(label: 'Current Password', controller: cur, obscureText: true),
-          const SizedBox(height: 12),
-          EcoTextField(label: 'New Password', controller: nw, obscureText: true),
+          Text(stage == 0 ? 'We will send a 6-digit code to your registered email. The code expires in 5 minutes.' : (stage == 1 ? 'Enter the 6-digit code from your email.' : 'Choose a password with at least 8 characters.'), style: const TextStyle(color: AppColors.textMuted)),
+          if (stage == 1) ...[const SizedBox(height: 12), EcoTextField(label: '6-digit code', controller: otp, keyboardType: TextInputType.number)],
+          if (stage == 2) ...[const SizedBox(height: 12), EcoTextField(label: 'New Password', controller: nw, obscureText: true), const SizedBox(height: 12), EcoTextField(label: 'Confirm Password', controller: confirm, obscureText: true)],
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
           ElevatedButton(onPressed: loading ? null : () async {
             set(() => loading = true);
             try {
-              await ApiService().changePassword(cur.text, nw.text);
-              if (ctx.mounted) { Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed!'), backgroundColor: AppColors.green600)); }
+              if (stage == 0) {
+                final message = await ApiService().requestChangePasswordOtp();
+                if (ctx.mounted) { set(() => stage = 1); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: AppColors.green600)); }
+              } else if (stage == 1) {
+                final message = await ApiService().verifyChangePasswordOtp(otp.text.trim());
+                if (ctx.mounted) { set(() => stage = 2); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: AppColors.green600)); }
+              } else {
+                if (nw.text.length < 8 || nw.text != confirm.text) throw ApiException(nw.text.length < 8 ? 'Use at least 8 characters' : 'Passwords do not match');
+                final message = await ApiService().changePasswordWithOtp(nw.text);
+                if (ctx.mounted) { Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: AppColors.green600)); }
+              }
             } catch (e) {
               if (ctx.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
             } finally { if (ctx.mounted) set(() => loading = false); }
-          }, child: loading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Change')),
+          }, child: loading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(stage == 0 ? 'Send OTP' : (stage == 1 ? 'Verify OTP' : 'Change Password'))),
         ],
       ),
     ));

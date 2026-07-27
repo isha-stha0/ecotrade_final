@@ -5,6 +5,8 @@ const RewardTransaction = require('../models/RewardTransaction');
 const RecyclingWorkflow = require('../models/RecyclingWorkflow');
 const AuditLog = require('../models/AuditLog');
 const SectorOrganization = require('../models/SectorOrganization');
+const { createNotification, notifyRoles } = require('../services/notificationService');
+const { labelForStatus, shortId } = require('../utils/notificationText');
 const { getFileUrl } = require('../utils/cloudinary');
 const {
   getRouteInfo,
@@ -92,6 +94,11 @@ exports.submitScrapRequest = async (req, res) => {
       status: 'pending',
     });
 
+    await Promise.all([
+      createNotification({ recipientId: req.user._id, title: 'Pickup request received', message: `Your ${scrap.category} pickup request #${shortId(scrap._id)} is underway. We will update you when a collector is assigned.`, type: 'scrap_status', referenceType: 'scrap_request', referenceId: scrap._id }),
+      notifyRoles(['admin'], { title: 'New scrap pickup request', message: `${req.user.full_name} requested ${scrap.quantity_estimated} ${scrap.unit} of ${scrap.category}.`, type: 'scrap_status', referenceType: 'scrap_request', referenceId: scrap._id }),
+    ]);
+
     res.status(201).json(scrap);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
@@ -110,7 +117,12 @@ exports.getAllScrapRequests = async (req, res) => {
     if (status) filter.status = status;
     if (sector_type) filter.sector_type = sector_type;
     
-    if (req.user.role !== 'admin' && req.user.role !== 'collector') {
+    if (req.user.role === 'collector') {
+      filter.$or = [
+        { status: 'approved', collector_id: null, declined_by: { $ne: req.user._id } },
+        { collector_id: req.user._id },
+      ];
+    } else if (req.user.role !== 'admin') {
       filter.user_id = req.user._id;
     }
 
@@ -135,8 +147,16 @@ exports.updateScrapStatus = async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized action' });
     }
 
+    if (req.user.role === 'collector' && !['collected', 'completed'].includes(status)) {
+      return res.status(403).json({ message: 'Collectors can only update pickups assigned to them' });
+    }
+
     const scrap = await ScrapRequest.findById(req.params.id);
     if (!scrap) return res.status(404).json({ message: 'Scrap request not found' });
+
+    if (req.user.role === 'collector' && scrap.collector_id?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'This pickup is not assigned to you' });
+    }
 
     const oldStatus = scrap.status;
     scrap.status = status;
@@ -203,7 +223,48 @@ exports.updateScrapStatus = async (req, res) => {
       ip_address: req.ip,
     });
 
+    const isAssigned = status === 'assigned' && scrap.collector_id;
+    await Promise.all([
+      createNotification({ recipientId: scrap.user_id, title: 'Pickup request updated', message: `Your scrap pickup #${shortId(scrap._id)} is ${labelForStatus(status)}.`, type: 'scrap_status', referenceType: 'scrap_request', referenceId: scrap._id }),
+      ...(isAssigned ? [createNotification({ recipientId: scrap.collector_id, title: 'New pickup assigned', message: `Pickup #${shortId(scrap._id)} has been assigned to you. Review the address and arrange collection.`, type: 'scrap_status', referenceType: 'scrap_request', referenceId: scrap._id })] : []),
+      ...(scrap.collector_id && !isAssigned && req.user._id.toString() !== scrap.collector_id.toString() ? [createNotification({ recipientId: scrap.collector_id, title: 'Pickup status changed', message: `Pickup #${shortId(scrap._id)} is ${labelForStatus(status)}.`, type: 'scrap_status', referenceType: 'scrap_request', referenceId: scrap._id })] : []),
+      ...(status === 'approved' && oldStatus !== 'approved' ? [notifyRoles(['collector'], { title: 'Pickup ready to accept', message: `Pickup #${shortId(scrap._id)} is approved. The first rider to accept it will be assigned.`, type: 'scrap_status', referenceType: 'scrap_request', referenceId: scrap._id })] : []),
+    ]);
+
     res.json(scrap);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+exports.claimScrapRequest = async (req, res) => {
+  try {
+    if (req.user.role !== 'collector') return res.status(403).json({ message: 'Collector only' });
+
+    // This single atomic update prevents two riders claiming the same pickup.
+    const scrap = await ScrapRequest.findOneAndUpdate(
+      { _id: req.params.id, status: 'approved', collector_id: null, declined_by: { $ne: req.user._id } },
+      { collector_id: req.user._id, status: 'assigned', assigned_at: new Date() },
+      { new: true },
+    );
+    if (!scrap) return res.status(409).json({ message: 'This pickup was already accepted or is no longer available' });
+
+    await Promise.all([
+      createNotification({ recipientId: scrap.user_id, title: 'Collector assigned', message: `A collector has accepted pickup #${shortId(scrap._id)} and will arrange collection.`, type: 'scrap_status', referenceType: 'scrap_request', referenceId: scrap._id }),
+      notifyRoles(['admin'], { title: 'Pickup accepted by rider', message: `Pickup #${shortId(scrap._id)} was accepted and assigned to ${req.user.full_name}.`, type: 'scrap_status', referenceType: 'scrap_request', referenceId: scrap._id }),
+    ]);
+    res.json(scrap);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+exports.declineScrapRequest = async (req, res) => {
+  try {
+    if (req.user.role !== 'collector') return res.status(403).json({ message: 'Collector only' });
+    const scrap = await ScrapRequest.findOneAndUpdate(
+      { _id: req.params.id, status: 'approved', collector_id: null },
+      { $addToSet: { declined_by: req.user._id } },
+      { new: true },
+    );
+    if (!scrap) return res.status(409).json({ message: 'This pickup is no longer available' });
+    res.json({ message: 'Pickup declined', scrap_id: scrap._id });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 

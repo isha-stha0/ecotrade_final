@@ -23,6 +23,8 @@ router.post('/', protect, upload.array('photos', 5), handleUploadError, scrapCon
 router.get('/my', protect, scrapController.getMyScrapRequests);
 router.get('/', protect, scrapController.getAllScrapRequests);
 router.put('/:id/status', protect, scrapController.updateScrapStatus);
+router.post('/:id/claim', protect, scrapController.claimScrapRequest);
+router.post('/:id/decline', protect, scrapController.declineScrapRequest);
 router.post('/sector-organization', protect, scrapController.registerSectorOrganization);
 router.delete('/:id', protect, scrapController.deleteScrapRequest);
 

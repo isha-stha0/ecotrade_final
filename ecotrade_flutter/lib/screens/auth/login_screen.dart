@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_provider.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onRegister;
@@ -173,7 +174,28 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   validator: (v) => v!.isEmpty ? 'Enter password' : null,
                 ),
-                const SizedBox(height: 32),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ForgotPasswordScreen(
+                                  initialEmail: _email.text.trim(),
+                                ),
+                              ),
+                            ),
+                    child: const Text(
+                      'Forgot password?',
+                      style: TextStyle(
+                        color: lightGreen,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
                 // Sign In button
                 SizedBox(
                   width: double.infinity,
@@ -232,7 +254,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 36),
-                // Demo credentials card
+                // Warning about accoutn locked after 5 failed attempts
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
@@ -244,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'DEMO CREDENTIALS',
+                        'ACCOUNT LOCKOUT WARNING',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -253,11 +275,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _DemoBtn(
-                        'User',
-                        'user@ecotrade.com',
-                        'user1234',
-                        () => _fill('user@ecotrade.com', 'user1234'),
+                      Text(
+                        'For security reasons, your account will be locked after 5 failed login attempts. If you are unable to log in, please use the "Forgot password?" option to reset your password.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: darkGreen.withValues(alpha: 0.7),
+                        ),
                       ),
                     ],
                   ),
