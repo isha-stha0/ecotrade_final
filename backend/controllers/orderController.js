@@ -5,6 +5,8 @@ const RewardTransaction = require('../models/RewardTransaction');
 const RewardRedemption = require('../models/RewardRedemption');
 const { sendEmail } = require('../utils/mailer');
 const { generatePaymentURL, processPaymentCallback, ESEWA_CONFIG } = require('../services/esewaService');
+const { createNotification, notifyRoles } = require('../services/notificationService');
+const { labelForStatus, shortId } = require('../utils/notificationText');
 
 const decodeEsewaData = (encoded) => {
   if (!encoded) return null;
@@ -121,6 +123,11 @@ exports.placeOrder = async (req, res) => {
 
     const populated = await Order.findById(order._id).populate('items.product_id', 'name price');
 
+    await Promise.all([
+      createNotification({ recipientId: req.user._id, title: 'Order received', message: `Order #${shortId(order._id)} is underway. We will notify you as it is prepared and delivered.`, type: 'order_update', referenceType: 'order', referenceId: order._id }),
+      notifyRoles(['admin'], { title: 'New product order', message: `${req.user.full_name} placed order #${shortId(order._id)} for Rs. ${order.total_amount}.`, type: 'order_update', referenceType: 'order', referenceId: order._id }),
+    ]);
+
     const emailSubject = `EcoTrade - Order Confirmation #${order._id}`;
     const emailHtml = `
       <h3>Thank you for your order, ${req.user.full_name || 'EcoTrade Customer'}!</h3>
@@ -208,6 +215,10 @@ exports.assignDeliveryCollector = async (req, res) => {
       .populate('items.product_id', 'name price');
 
     if (!order) return res.status(404).json({ message: 'Order not found' });
+    await Promise.all([
+      createNotification({ recipientId: collectorId, title: 'New delivery assigned', message: `Order #${shortId(order._id)} has been assigned to you for delivery.`, type: 'order_update', referenceType: 'order', referenceId: order._id }),
+      createNotification({ recipientId: order.user_id._id || order.user_id, title: 'Delivery assigned', message: `A driver has been assigned to order #${shortId(order._id)}.`, type: 'order_update', referenceType: 'order', referenceId: order._id }),
+    ]);
     res.json(order);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
@@ -232,6 +243,10 @@ exports.updateMyDeliveryStatus = async (req, res) => {
       { new: true }
     );
     if (!order) return res.status(404).json({ message: 'Assigned order not found' });
+    await Promise.all([
+      createNotification({ recipientId: order.user_id, title: 'Order status updated', message: `Order #${shortId(order._id)} is ${labelForStatus(orderStatus)}.`, type: 'order_update', referenceType: 'order', referenceId: order._id }),
+      notifyRoles(['admin'], { title: 'Delivery status updated', message: `Order #${shortId(order._id)} is ${labelForStatus(orderStatus)}.`, type: 'order_update', referenceType: 'order', referenceId: order._id }),
+    ]);
     res.json(order);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
@@ -253,6 +268,10 @@ exports.updateOrderStatus = async (req, res) => {
 
     const order = await Order.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (orderStatus) {
+      await createNotification({ recipientId: order.user_id, title: 'Order status updated', message: `Order #${shortId(order._id)} is ${labelForStatus(orderStatus)}.`, type: 'order_update', referenceType: 'order', referenceId: order._id });
+      if (order.delivery_collector_id) await createNotification({ recipientId: order.delivery_collector_id, title: 'Delivery update', message: `Order #${shortId(order._id)} is ${labelForStatus(orderStatus)}.`, type: 'order_update', referenceType: 'order', referenceId: order._id });
+    }
     res.json(order);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
@@ -417,6 +436,11 @@ exports.verifyEsewaPayment = async (req, res) => {
     order.payment_status = 'paid';
     order.order_status = 'placed';
     await order.save();
+
+    await Promise.all([
+      createNotification({ recipientId: order.user_id, title: 'Payment confirmed', message: `Payment for order #${shortId(order._id)} was received. Your order is underway.`, type: 'order_update', referenceType: 'order', referenceId: order._id }),
+      notifyRoles(['admin'], { title: 'Paid product order', message: `Order #${shortId(order._id)} was paid and is ready to process.`, type: 'order_update', referenceType: 'order', referenceId: order._id }),
+    ]);
 
     // Deduct reward points if used
     if (order.points_used > 0) {

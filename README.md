@@ -57,6 +57,11 @@ You should see:
 🚀 Server running on port 5000
 ```
 
+To deliver password reset codes, copy `backend/.env.example` to `backend/.env`
+and set `EMAIL_USER` and `EMAIL_PASS`. Gmail accounts must use an App Password.
+When email is not configured, reset codes are printed in the backend console for
+local development.
+
 ### Step 3 — Configure Flutter IP
 Open: `ecotrade_flutter\lib\utils\app_theme.dart`
 

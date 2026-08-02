@@ -8,9 +8,12 @@ const passwordResetSchema = new Schema(
       ref: 'User',
       required: true,
     },
+    // Only a SHA-256 digest is persisted; the emailed code is never stored.
     token:      { type: String, required: true, unique: true },
     expires_at: { type: Date, required: true },
     is_used:    { type: Boolean, default: false },
+    verified_at: { type: Date, default: null },
+    purpose: { type: String, enum: ['forgot', 'change'], default: 'forgot' },
   },
   { timestamps: true }
 );

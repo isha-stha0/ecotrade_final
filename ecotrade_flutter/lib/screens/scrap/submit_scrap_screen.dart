@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
+import '../../models/models.dart';
 import '../../services/api_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/widgets.dart';
@@ -15,8 +16,10 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
   final _form = GlobalKey<FormState>();
   final _desc = TextEditingController(), _qty = TextEditingController();
   String _category = '', _unit = 'kg';
+  String? _categoryId;
+  List<ScrapCategoryModel> _categories = [];
   ScrapMapSelection? _pickupLocation;
-  bool _loading = false;
+  bool _loading = false, _loadingCategories = true;
   final List<_SelectedScrapImage> _selectedImages = [];
   final _imagePicker = ImagePicker();
   
@@ -24,19 +27,62 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
   static const _allowedMimes = ['image/jpeg', 'image/png', 'image/jpg'];
   static const _maxImages = 5;
 
-  static const _cats = [
-    {'v':'paper','e':'📄','l':'Paper','p':'10'},
-    {'v':'plastic','e':'♻️','l':'Plastic','p':'15'},
-    {'v':'glass','e':'🍶','l':'Glass','p':'12'},
-    {'v':'aluminum','e':'🥫','l':'Aluminum','p':'20'},
-    {'v':'electronics','e':'💻','l':'Electronics','p':'25'},
-    {'v':'other','e':'🗃️','l':'Other','p':'5'},
+  static const _fallbackCategories = [
+    ScrapCategoryModel(id: 'paper', name: 'Paper', icon: 'description', pointsPerKg: 10, description: 'Newspapers, books, and cartons'),
+    ScrapCategoryModel(id: 'plastic', name: 'Plastic', icon: 'recycling', pointsPerKg: 15, description: 'Bottles, containers, and wrappers'),
+    ScrapCategoryModel(id: 'glass', name: 'Glass', icon: 'wine_bar', pointsPerKg: 12, description: 'Bottles, jars, and glass pieces'),
+    ScrapCategoryModel(id: 'aluminum', name: 'Aluminum', icon: 'inventory_2', pointsPerKg: 20, description: 'Cans, foils, and light metals'),
+    ScrapCategoryModel(id: 'electronics', name: 'Electronics', icon: 'devices', pointsPerKg: 25, description: 'Small e-waste and cables'),
+    ScrapCategoryModel(id: 'other', name: 'Other', icon: 'category', pointsPerKg: 5, description: 'Other recyclable material'),
   ];
 
   int get _pts {
     if (_category.isEmpty || _qty.text.isEmpty) return 0;
-    final cat = _cats.firstWhere((c) => c['v'] == _category, orElse: () => {'p':'5'});
-    return (int.parse(cat['p']!) * (double.tryParse(_qty.text) ?? 0)).floor();
+    final cat = _selectedCategory;
+    return ((cat?.pointsPerKg ?? 5) * (double.tryParse(_qty.text) ?? 0)).floor();
+  }
+
+  ScrapCategoryModel? get _selectedCategory {
+    for (final category in _categories) {
+      if (category.id == _categoryId) return category;
+    }
+    return null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final categories = await ApiService().getScrapCategories();
+      if (mounted) {
+        setState(() {
+          _categories = categories.isEmpty ? _fallbackCategories : categories;
+          _loadingCategories = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _categories = _fallbackCategories;
+          _loadingCategories = false;
+        });
+      }
+    }
+  }
+
+  IconData _categoryIcon(String value) {
+    switch (value) {
+      case 'description': return Icons.description_outlined;
+      case 'recycling': return Icons.recycling;
+      case 'wine_bar': return Icons.wine_bar_outlined;
+      case 'inventory_2': return Icons.inventory_2_outlined;
+      case 'devices': return Icons.devices_other_outlined;
+      default: return Icons.category_outlined;
+    }
   }
 
   Future<void> _pickImage() async {
@@ -130,6 +176,7 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
       await ApiService().submitScrap(
         {
           'category': _category, 
+          if (_categoryId != null) 'scrap_category_id': _categoryId,
           'description': _desc.text, 
           'quantity': double.parse(_qty.text), 
           'unit': _unit, 
@@ -142,7 +189,7 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Scrap submitted! Awaiting approval 🌱'), backgroundColor: AppColors.green600));
         _desc.clear(); _qty.clear();
-        setState(() { _category = ''; _pickupLocation = null; _selectedImages.clear(); });
+        setState(() { _category = ''; _categoryId = null; _pickupLocation = null; _selectedImages.clear(); });
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.red));
@@ -157,32 +204,70 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
       child: Form(key: _form, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('What are you recycling?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
         const SizedBox(height: 4),
-        const Text('Select a category and describe your material', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+        const Text('Choose the material type. Estimated points use the current EcoPoint rate.', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
         const SizedBox(height: 20),
         const Text('Category *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted, letterSpacing: 0.04)),
         const SizedBox(height: 8),
-        GridView.count(crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.95,
-          children: _cats.map((c) {
-            final sel = _category == c['v'];
-            return GestureDetector(
-              onTap: () => setState(() => _category = c['v']!),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: sel ? AppColors.green500.withValues(alpha: 0.12) : AppColors.bgCard,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: sel ? AppColors.green500.withValues(alpha: 0.4) : AppColors.border),
-                ),
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text(c['e']!, style: const TextStyle(fontSize: 28)),
-                  const SizedBox(height: 4),
-                  Text(c['l']!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: sel ? AppColors.green400 : AppColors.textMuted)),
-                  Text('${c['p']} pts/kg', style: const TextStyle(fontSize: 9, color: AppColors.textDim)),
-                ]),
+        if (_loadingCategories)
+          const EcoLoading()
+        else
+          LayoutBuilder(builder: (context, constraints) {
+            final columns = constraints.maxWidth > 560 ? 3 : 2;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _categories.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: columns == 3 ? 1.35 : 1.18,
               ),
+              itemBuilder: (_, index) {
+                final c = _categories[index];
+                final sel = _categoryId == c.id;
+                return InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => setState(() {
+                    _categoryId = c.id;
+                    _category = c.name.toLowerCase().replaceAll(RegExp(r'\s+'), '_');
+                  }),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: sel ? AppColors.green500.withValues(alpha: 0.12) : AppColors.bgCard,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: sel ? AppColors.green500 : AppColors.border, width: sel ? 1.4 : 1),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: sel ? AppColors.green500.withValues(alpha: 0.18) : AppColors.bgCard,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(_categoryIcon(c.icon), color: sel ? AppColors.green400 : AppColors.textMuted, size: 19),
+                        ),
+                        const Spacer(),
+                        if (sel) const Icon(Icons.check_circle, color: AppColors.green400, size: 18),
+                      ]),
+                      const Spacer(),
+                      Text(c.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: sel ? AppColors.green400 : AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 3),
+                      Text('${c.pointsPerKg} pts/kg', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.yellow)),
+                      if (c.description.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(c.description, style: const TextStyle(fontSize: 10.5, color: AppColors.textDim), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
+                    ]),
+                  ),
+                );
+              },
             );
-          }).toList()),
+          }),
         const SizedBox(height: 18),
         EcoTextField(label: 'Description *', hint: 'E.g., old newspapers, plastic bottles...', controller: _desc, maxLines: 3, validator: (v) => v!.isEmpty ? 'Required' : null),
         const SizedBox(height: 14),
@@ -238,9 +323,9 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: AppColors.green500.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.green500.withValues(alpha: 0.2))),
           child: Row(children: [
-            const Text('🏆', style: TextStyle(fontSize: 22)), const SizedBox(width: 10),
+            const Icon(Icons.emoji_events_outlined, color: AppColors.yellow, size: 24), const SizedBox(width: 10),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Estimated Earnings', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              Text('${_selectedCategory?.pointsPerKg ?? 0} pts/kg estimated', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
               Text('$_pts EcoPoints', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.yellow, fontFamily: 'monospace')),
             ]),
           ]),

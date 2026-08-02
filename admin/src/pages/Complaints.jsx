@@ -2,6 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { complaintAPI, feedbackAPI } from '../api/api';
 import { Loader2, MessageSquare, AlertTriangle, CheckCircle, Reply } from 'lucide-react';
 
+const issueLabels = {
+  collector_no_show: 'Collector no-show',
+  wrong_weight: 'Wrong scrap weight',
+  payment_issue: 'Payment issue',
+  product_defect: 'Product defect',
+  late_delivery: 'Late delivery',
+  app_bug: 'App bug',
+  other: 'Other',
+};
+
 const Complaints = () => {
   const [complaints, setComplaints] = useState([]);
   const [feedback, setFeedback] = useState([]);
@@ -45,7 +55,7 @@ const Complaints = () => {
 
   const handleOpenResolve = (comp) => {
     setSelectedItem(comp);
-    setResolutionText(comp.resolution || '');
+    setResolutionText(comp.admin_response || comp.resolution || '');
     setShowResolveModal(true);
   };
 
@@ -152,7 +162,11 @@ const Complaints = () => {
         /* tab 1: complaints */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {complaints.length > 0 ? (
-            complaints.map((comp) => (
+            complaints.map((comp) => {
+              const issueType = comp.issue_type || comp.category || 'other';
+              const subject = comp.title || issueLabels[issueType] || issueType;
+              const resolution = comp.admin_response || comp.resolution;
+              return (
               <div key={comp._id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -160,7 +174,7 @@ const Complaints = () => {
                       {comp.status}
                     </span>
                     <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      Category: <strong>{comp.category || 'general'}</strong>
+                      Category: <strong>{issueLabels[issueType] || issueType}</strong>
                     </span>
                   </div>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -169,7 +183,7 @@ const Complaints = () => {
                 </div>
 
                 <div style={{ color: 'var(--text-main)', fontSize: '0.95rem' }}>
-                  <strong>Subject: {comp.title}</strong>
+                  <strong>Subject: {subject}</strong>
                   <p style={{ color: 'var(--text-main)', margin: '0.35rem 0 0 0', lineHeight: 1.5 }}>{comp.description}</p>
                 </div>
 
@@ -177,7 +191,7 @@ const Complaints = () => {
                   Submitted by: <strong>{comp.user_id?.full_name || 'Guest User'}</strong> ({comp.user_id?.email || '—'})
                 </div>
 
-                {comp.resolution ? (
+                {resolution ? (
                   <div style={{
                     background: 'rgba(16, 185, 129, 0.05)',
                     border: '1px solid rgba(16, 185, 129, 0.1)',
@@ -188,7 +202,7 @@ const Complaints = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981', fontWeight: 600, marginBottom: '0.25rem' }}>
                       <CheckCircle size={16} /> Resolution Logs:
                     </div>
-                    <span style={{ color: 'var(--text-main)' }}>{comp.resolution}</span>
+                    <span style={{ color: 'var(--text-main)' }}>{resolution}</span>
                   </div>
                 ) : (
                   <button
@@ -202,7 +216,8 @@ const Complaints = () => {
                 )}
 
               </div>
-            ))
+              );
+            })
           ) : (
             <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
               No complaints filed yet.
@@ -299,7 +314,7 @@ const Complaints = () => {
               </div>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <p style={{ fontSize: '0.9rem', color: '#94a3b8', margin: 0 }}>
-                  Enter resolution statement for complaint: <strong style={{ color: '#ffffff' }}>"{selectedItem.title}"</strong>.
+                  Enter resolution statement for complaint: <strong style={{ color: '#ffffff' }}>"{selectedItem.title || issueLabels[selectedItem.issue_type] || selectedItem.issue_type || 'Complaint'}"</strong>.
                 </p>
 
                 <div className="form-group">

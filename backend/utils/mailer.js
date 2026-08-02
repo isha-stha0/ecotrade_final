@@ -3,7 +3,9 @@ const nodemailer = require('nodemailer');
 const sendEmail = async ({ to, subject, text, html }) => {
   try {
     let transporter;
-    const isSmtpConfigured = process.env.SMTP_USER && process.env.SMTP_PASS;
+    const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
+    const smtpPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+    const isSmtpConfigured = smtpUser && smtpPass;
 
     if (isSmtpConfigured) {
       transporter = nodemailer.createTransport({
@@ -11,8 +13,8 @@ const sendEmail = async ({ to, subject, text, html }) => {
         port: parseInt(process.env.SMTP_PORT || '587'),
         secure: process.env.SMTP_PORT === '465',
         auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
+          user: smtpUser,
+          pass: smtpPass,
         },
       });
     } else {
@@ -25,7 +27,7 @@ const sendEmail = async ({ to, subject, text, html }) => {
     }
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || '"EcoTrade Support" <noreply@ecotrade.com>',
+      from: process.env.EMAIL_FROM || `"EcoTrade Support" <${smtpUser}>`,
       to,
       subject,
       text,
@@ -37,7 +39,7 @@ const sendEmail = async ({ to, subject, text, html }) => {
     return info;
   } catch (error) {
     console.error(`❌ Email sending failed: ${error.message}`);
-    return { error: error.message };
+    throw error;
   }
 };
 

@@ -14,8 +14,8 @@ import 'screens/scrap/submit_scrap_screen.dart';
 import 'screens/orders/orders_screen.dart';
 import 'screens/orders/payment_result_screen.dart';
 import 'screens/profile/profile_screen.dart';
-import 'screens/admin/admin_screen.dart';
 import 'screens/collector/collector_screen.dart';
+import 'screens/notifications/notifications_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +57,7 @@ class EcoTradeApp extends StatelessWidget {
         '/main': (_) => const _MainGuard(),
         '/orders/success': (_) => const PaymentResultScreen(success: true),
         '/orders/failed': (_) => const PaymentResultScreen(success: false),
+        '/notifications': (_) => const NotificationsScreen(),
       },
     );
   }
@@ -131,7 +132,6 @@ class _MainNavigationState extends State<MainNavigation> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final cart = context.watch<CartProvider>();
-    final isAdmin = auth.isAdmin;
     final isCollector = auth.isCollector;
 
     if (isCollector) {
@@ -143,10 +143,20 @@ class _MainNavigationState extends State<MainNavigation> {
       const ShopScreen(),
       const SubmitScrapScreen(),
       const OrdersScreen(),
-      isAdmin ? const AdminScreen() : const ProfileScreen(),
+      const ProfileScreen(),
     ];
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('EcoTrade'),
+        actions: [
+          IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              tooltip: 'Notifications',
+              onPressed: () =>
+                  Navigator.of(context).pushNamed('/notifications'))
+        ],
+      ),
       body: IndexedStack(
         index: _selectedIndex,
         children: screens,
@@ -161,8 +171,8 @@ class _MainNavigationState extends State<MainNavigation> {
           selectedIndex: _selectedIndex,
           onDestinationSelected: _onItemTapped,
           backgroundColor: AppColors.bgSecondary, // light grey (was dark)
-          indicatorColor:
-              AppColors.lightGreen.withValues(alpha: 0.15), // subtle light green
+          indicatorColor: AppColors.lightGreen
+              .withValues(alpha: 0.15), // subtle light green
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           destinations: [
             const NavigationDestination(
@@ -193,16 +203,10 @@ class _MainNavigationState extends State<MainNavigation> {
               selectedIcon: Icon(Icons.receipt),
               label: 'Orders',
             ),
-            NavigationDestination(
-              icon: Icon(
-                isAdmin
-                    ? Icons.admin_panel_settings_outlined
-                    : Icons.person_outlined,
-              ),
-              selectedIcon: Icon(
-                isAdmin ? Icons.admin_panel_settings : Icons.person,
-              ),
-              label: isAdmin ? 'Admin' : 'Profile',
+            const NavigationDestination(
+              icon: Icon(Icons.person_outlined),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profile',
             ),
           ],
         ),

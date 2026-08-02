@@ -10,7 +10,6 @@ class AuthProvider extends ChangeNotifier {
   UserModel? get user => _user;
   bool get loading => _loading;
   bool get isLoggedIn => _user != null;
-  bool get isAdmin => _user?.role == 'admin';
   bool get isCollector => _user?.role == 'collector';
 
   AuthProvider() { _init(); }

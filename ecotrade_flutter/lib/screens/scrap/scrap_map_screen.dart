@@ -69,9 +69,12 @@ class _ScrapMapScreenState extends State<ScrapMapScreen> {
   LatLng? _routeStart;
   List<LatLng> _routePoints = [];
   Timer? _searchDebounce;
+  Timer? _routeRefreshTimer;
   bool _searching = false;
   bool _choosingRouteStart = false;
   bool _routeLoading = false;
+  bool _routeRefreshInFlight = false;
+  bool _autoRefreshingRoute = false;
   bool _locating = false;
   String? _routeError;
   List<_PlaceResult> _searchResults = [];
@@ -94,6 +97,7 @@ class _ScrapMapScreenState extends State<ScrapMapScreen> {
   }
 
   void _setRouteStart(LatLng point) {
+    _stopAutoRouteRefresh();
     setState(() {
       _routeStart = point;
       _routePoints = [];
@@ -154,6 +158,7 @@ class _ScrapMapScreenState extends State<ScrapMapScreen> {
   }
 
   void _startManualDirections({String? message}) {
+    _stopAutoRouteRefresh();
     setState(() {
       _choosingRouteStart = true;
       _routeStart = null;
@@ -163,6 +168,7 @@ class _ScrapMapScreenState extends State<ScrapMapScreen> {
   }
 
   Future<void> _startInAppDirections() async {
+    _stopAutoRouteRefresh();
     setState(() {
       _locating = true;
       _routeError = null;
@@ -184,16 +190,54 @@ class _ScrapMapScreenState extends State<ScrapMapScreen> {
       _routeError = null;
     });
     await _findRouteInApp();
+    _startAutoRouteRefresh();
   }
 
-  Future<void> _findRouteInApp() async {
+  void _startAutoRouteRefresh() {
+    if (widget.pickerMode) return;
+    _routeRefreshTimer?.cancel();
+    if (mounted) {
+      setState(() => _autoRefreshingRoute = true);
+    } else {
+      _autoRefreshingRoute = true;
+    }
+    _routeRefreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _refreshRouteFromCurrentLocation();
+    });
+  }
+
+  void _stopAutoRouteRefresh() {
+    _routeRefreshTimer?.cancel();
+    _routeRefreshTimer = null;
+    _autoRefreshingRoute = false;
+  }
+
+  Future<void> _refreshRouteFromCurrentLocation() async {
+    if (!mounted || widget.pickerMode || _routeRefreshInFlight || _choosingRouteStart) return;
+    _routeRefreshInFlight = true;
+    try {
+      final current = await getCurrentLocation();
+      if (!mounted || current == null) return;
+      setState(() {
+        _routeStart = current;
+        _routeError = null;
+      });
+      await _findRouteInApp(showLoading: false, fitCamera: false);
+    } finally {
+      _routeRefreshInFlight = false;
+    }
+  }
+
+  Future<void> _findRouteInApp({bool showLoading = true, bool fitCamera = true}) async {
     final start = _routeStart;
     if (start == null) return;
 
-    setState(() {
-      _routeLoading = true;
-      _routeError = null;
-    });
+    if (showLoading) {
+      setState(() {
+        _routeLoading = true;
+        _routeError = null;
+      });
+    }
 
     try {
       final uri = Uri.parse(
@@ -224,12 +268,14 @@ class _ScrapMapScreenState extends State<ScrapMapScreen> {
         _choosingRouteStart = false;
       });
 
-      _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: LatLngBounds.fromPoints([start, _selectedPoint, ...points]),
-          padding: const EdgeInsets.all(80),
-        ),
-      );
+      if (fitCamera) {
+        _mapController.fitCamera(
+          CameraFit.bounds(
+            bounds: LatLngBounds.fromPoints([start, _selectedPoint, ...points]),
+            padding: const EdgeInsets.all(80),
+          ),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -238,13 +284,14 @@ class _ScrapMapScreenState extends State<ScrapMapScreen> {
         _choosingRouteStart = false;
       });
     } finally {
-      if (mounted) setState(() => _routeLoading = false);
+      if (mounted && showLoading) setState(() => _routeLoading = false);
     }
   }
 
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _routeRefreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -380,7 +427,7 @@ class _ScrapMapScreenState extends State<ScrapMapScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(14),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 12, offset: const Offset(0, 4)),
+                        BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 12, offset: const Offset(0, 4)),
                       ],
                     ),
                     child: Column(
@@ -407,7 +454,7 @@ class _ScrapMapScreenState extends State<ScrapMapScreen> {
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.14),
+                    color: Colors.black.withValues(alpha: 0.14),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -428,28 +475,51 @@ class _ScrapMapScreenState extends State<ScrapMapScreen> {
                       ? (_routeStart == null
                           ? (_routeError ?? 'Choose where the collector is starting from.')
                           : 'Start selected. Tap Find Route to draw directions in the app.')
-                      : (_routeError ?? _label),
+                      : (_routeError ?? (_autoRefreshingRoute
+                          ? 'Route auto-refreshes from your current location every 3 seconds.'
+                          : _label)),
                   style: TextStyle(fontSize: 12, color: _routeError == null ? AppColors.textMuted : AppColors.yellow),
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: widget.pickerMode
-                        ? _confirmSelection
-                        : _choosingRouteStart
-                            ? (_routeStart == null || _routeLoading ? null : _findRouteInApp)
-                            : (_locating || _routeLoading ? null : _startInAppDirections),
-                    icon: _routeLoading || _locating
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Icon(widget.pickerMode ? Icons.check_rounded : Icons.directions_outlined),
-                    label: Text(widget.pickerMode
-                        ? (widget.confirmLabel ?? 'Use This Pickup Location')
-                        : _choosingRouteStart
-                            ? 'Find Route'
-                            : (_locating ? 'Finding Your Location...' : (_routePoints.isEmpty ? 'Use My Location' : 'Refresh Route From My Location'))),
+                if (!widget.pickerMode && _routePoints.isNotEmpty && !_choosingRouteStart)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                    decoration: BoxDecoration(
+                      color: AppColors.green500.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.green500.withValues(alpha: 0.18)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.my_location, color: AppColors.green500, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _routeRefreshInFlight ? 'Updating route from your location...' : 'Live route tracking is on',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.green500),
+                        ),
+                      ),
+                    ]),
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: widget.pickerMode
+                          ? _confirmSelection
+                          : _choosingRouteStart
+                              ? (_routeStart == null || _routeLoading ? null : _findRouteInApp)
+                              : (_locating || _routeLoading ? null : _startInAppDirections),
+                      icon: _routeLoading || _locating
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Icon(widget.pickerMode ? Icons.check_rounded : Icons.directions_outlined),
+                      label: Text(widget.pickerMode
+                          ? (widget.confirmLabel ?? 'Use This Pickup Location')
+                          : _choosingRouteStart
+                              ? 'Find Route'
+                              : (_locating ? 'Finding Your Location...' : 'Use My Location')),
+                    ),
                   ),
-                ),
               ]),
             ),
           ),

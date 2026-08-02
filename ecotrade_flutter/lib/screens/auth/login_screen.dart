@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_provider.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onRegister;
@@ -77,7 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   'Sign in to EcoTrade',
                   style: TextStyle(
                     fontSize: 16,
-                    color: darkGreen.withOpacity(0.7),
+                    color: darkGreen.withValues(alpha: 0.7),
                   ),
                 ),
                 const SizedBox(height: 40),
@@ -90,11 +91,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: InputDecoration(
                     labelText: 'Email',
                     hintText: 'you@example.com',
-                    hintStyle: TextStyle(color: darkGreen.withOpacity(0.5)),
+                    hintStyle: TextStyle(color: darkGreen.withValues(alpha: 0.5)),
                     labelStyle: const TextStyle(color: darkGreen),
                     prefixIcon: Icon(
                       Icons.email_outlined,
-                      color: darkGreen.withOpacity(0.6),
+                      color: darkGreen.withValues(alpha: 0.6),
                     ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
@@ -105,7 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide:
-                          BorderSide(color: darkGreen.withOpacity(0.15)),
+                          BorderSide(color: darkGreen.withValues(alpha: 0.15)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -132,18 +133,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: InputDecoration(
                     labelText: 'Password',
                     hintText: '••••••••',
-                    hintStyle: TextStyle(color: darkGreen.withOpacity(0.5)),
+                    hintStyle: TextStyle(color: darkGreen.withValues(alpha: 0.5)),
                     labelStyle: const TextStyle(color: darkGreen),
                     prefixIcon: Icon(
                       Icons.lock_outline,
-                      color: darkGreen.withOpacity(0.6),
+                      color: darkGreen.withValues(alpha: 0.6),
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _showPass
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined,
-                        color: darkGreen.withOpacity(0.6),
+                        color: darkGreen.withValues(alpha: 0.6),
                       ),
                       onPressed: () => setState(() => _showPass = !_showPass),
                     ),
@@ -156,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide:
-                          BorderSide(color: darkGreen.withOpacity(0.15)),
+                          BorderSide(color: darkGreen.withValues(alpha: 0.15)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -173,7 +174,28 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   validator: (v) => v!.isEmpty ? 'Enter password' : null,
                 ),
-                const SizedBox(height: 32),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ForgotPasswordScreen(
+                                  initialEmail: _email.text.trim(),
+                                ),
+                              ),
+                            ),
+                    child: const Text(
+                      'Forgot password?',
+                      style: TextStyle(
+                        color: lightGreen,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
                 // Sign In button
                 SizedBox(
                   width: double.infinity,
@@ -187,7 +209,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      disabledBackgroundColor: darkGreen.withOpacity(0.6),
+                      disabledBackgroundColor: darkGreen.withValues(alpha: 0.6),
                     ),
                     child: _loading
                         ? const SizedBox(
@@ -216,10 +238,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     text: TextSpan(
                       style: TextStyle(
                         fontSize: 15,
-                        color: darkGreen.withOpacity(0.7),
+                        color: darkGreen.withValues(alpha: 0.7),
                       ),
-                      children: [
-                        const TextSpan(text: "Don't have an account? "),
+                      children: const [
+                        TextSpan(text: "Don't have an account? "),
                         TextSpan(
                           text: 'Create one',
                           style: TextStyle(
@@ -232,19 +254,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 36),
-                // Demo credentials card
+                // Warning about accoutn locked after 5 failed attempts
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: lightGreen.withOpacity(0.3)),
+                    border: Border.all(color: lightGreen.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'DEMO CREDENTIALS',
+                      const Text(
+                        'ACCOUNT LOCKOUT WARNING',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -253,18 +275,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _DemoBtn(
-                        'Admin',
-                        'admin@ecotrade.com',
-                        'admin123',
-                        () => _fill('admin@ecotrade.com', 'admin123'),
-                      ),
-                      const SizedBox(height: 8),
-                      _DemoBtn(
-                        'User',
-                        'user@ecotrade.com',
-                        'user1234',
-                        () => _fill('user@ecotrade.com', 'user1234'),
+                      Text(
+                        'For security reasons, your account will be locked after 5 failed login attempts. If you are unable to log in, please use the "Forgot password?" option to reset your password.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: darkGreen.withValues(alpha: 0.7),
+                        ),
                       ),
                     ],
                   ),
