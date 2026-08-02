@@ -72,7 +72,14 @@ exports.updateUserProfile = async (req, res) => {
     if (email !== undefined) update.email = email;
     if (phone !== undefined) update.phone = phone;
     if (address !== undefined) update.address = address;
-    if (is_active !== undefined) update.is_active = is_active;
+    if (is_active !== undefined) {
+      update.is_active = is_active;
+      if (is_active) {
+        update.failed_login_attempts = 0;
+        update.failed_otp_attempts = 0;
+        update.deactivation_reason = null;
+      }
+    }
     if (is_verified !== undefined) update.is_verified = is_verified;
 
     const user = await User.findByIdAndUpdate(req.params.id, update, {
@@ -90,6 +97,11 @@ exports.toggleUserActive = async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     user.is_active = !user.is_active;
+    if (user.is_active) {
+      user.failed_login_attempts = 0;
+      user.failed_otp_attempts = 0;
+      user.deactivation_reason = null;
+    }
     await user.save();
     res.json(user);
   } catch (e) { res.status(500).json({ message: e.message }); }

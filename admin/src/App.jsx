@@ -18,6 +18,7 @@ import Orders from './pages/Orders';
 import Reports from './pages/Reports';
 import Complaints from './pages/Complaints';
 import MapPage from './pages/MapPage';
+import Notifications from './pages/Notifications';
 
 function App() {
   return (
@@ -43,6 +44,7 @@ function App() {
               <Route path="/map" element={<MapPage />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/complaints" element={<Complaints />} />
+              <Route path="/notifications" element={<Notifications />} />
             </Route>
           </Route>
         </Routes>

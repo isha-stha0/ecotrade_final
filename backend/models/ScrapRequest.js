@@ -15,6 +15,9 @@ const scrapRequestSchema = new Schema(
       default: null,
       alias: 'collector',
     },
+    // Collectors who declined an approved offer. This is per-collector, so it
+    // never cancels the customer's pickup request for everyone else.
+    declined_by: [{ type: Schema.Types.ObjectId, ref: 'User' }],
     scrap_category_id: {
       type: Schema.Types.ObjectId,
       ref: 'ScrapCategory',

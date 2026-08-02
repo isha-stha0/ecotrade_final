@@ -20,6 +20,9 @@ const userSchema = new Schema(
     is_active:     { type: Boolean, default: true, alias: 'isActive' },
     is_verified:   { type: Boolean, default: false },          // Email/phone verified
     last_login_at: { type: Date },
+    failed_login_attempts: { type: Number, default: 0, min: 0 },
+    failed_otp_attempts: { type: Number, default: 0, min: 0 },
+    deactivation_reason: { type: String, default: null },
   },
   { timestamps: true }                                         // adds createdAt, updatedAt
 );

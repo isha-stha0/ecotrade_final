@@ -54,7 +54,8 @@ class _CollectorScreenState extends State<CollectorScreen> {
     }
   }
 
-  Future<void> _updateDeliveryStatus(Map<String, dynamic> order, String status) async {
+  Future<void> _updateDeliveryStatus(
+      Map<String, dynamic> order, String status) async {
     try {
       await ApiService().updateDeliveryStatus(order['_id'].toString(), status);
       await _load();
@@ -68,14 +69,14 @@ class _CollectorScreenState extends State<CollectorScreen> {
   }
 
   Future<void> _updateStatus(ScrapModel scrap, String status) async {
-    final user = context.read<AuthProvider>().user;
-    final collectorId = user?.id;
     try {
-      await ApiService().updateScrapStatus(
-        scrap.id,
-        status,
-        collectorId: status == 'assigned' || status == 'collected' || status == 'completed' ? collectorId : null,
-      );
+      if (status == 'assigned') {
+        await ApiService().claimScrapRequest(scrap.id);
+      } else if (status == 'declined') {
+        await ApiService().declineScrapRequest(scrap.id);
+      } else {
+        await ApiService().updateScrapStatus(scrap.id, status);
+      }
       await _load();
     } catch (e) {
       if (mounted) {
@@ -90,37 +91,54 @@ class _CollectorScreenState extends State<CollectorScreen> {
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
     final userId = user?.id;
-    bool isAssignedToMe(ScrapModel scrap) => userId != null && userId.isNotEmpty && scrap.collectorId == userId;
-    final activeScraps = _scraps
-        .where((s) {
-          if (s.status == 'completed' || s.status == 'rejected' || s.status == 'cancelled') return false;
-          if (s.status == 'assigned' || s.status == 'collected') return isAssignedToMe(s);
-          return true;
-        })
-        .toList();
+    bool isAssignedToMe(ScrapModel scrap) =>
+        userId != null && userId.isNotEmpty && scrap.collectorId == userId;
+    final activeScraps = _scraps.where((s) {
+      if (s.status == 'completed' ||
+          s.status == 'rejected' ||
+          s.status == 'cancelled') return false;
+      if (s.status == 'assigned' || s.status == 'collected')
+        return isAssignedToMe(s);
+      return true;
+    }).toList();
     final completedScraps = _scraps
-        .where((s) => s.status == 'completed' && (isAssignedToMe(s) || s.collectorId == null || s.collectorId!.isEmpty))
+        .where((s) =>
+            s.status == 'completed' &&
+            (isAssignedToMe(s) ||
+                s.collectorId == null ||
+                s.collectorId!.isEmpty))
         .toList();
     final activeDeliveries = _deliveries.where((o) {
       final status = (o['orderStatus'] ?? o['order_status'] ?? '').toString();
-      return status != 'delivered' && status != 'cancelled' && status != 'refunded';
+      return status != 'delivered' &&
+          status != 'cancelled' &&
+          status != 'refunded';
     }).toList();
-    final completedDeliveries = _deliveries.where((o) => (o['orderStatus'] ?? o['order_status']) == 'delivered').toList();
+    final completedDeliveries = _deliveries
+        .where((o) => (o['orderStatus'] ?? o['order_status']) == 'delivered')
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
         title: Row(children: [
-          Image.asset('assets/images/ecotrade_logo.jpg', width: 48, height: 42, fit: BoxFit.contain),
+          Image.asset('assets/images/ecotrade_logo.jpg',
+              width: 48, height: 42, fit: BoxFit.contain),
           const SizedBox(width: 8),
           const Text('Collector Portal'),
         ]),
         actions: [
+          IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              tooltip: 'Notifications',
+              onPressed: () =>
+                  Navigator.of(context).pushNamed('/notifications')),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
           IconButton(
             icon: const Icon(Icons.logout_rounded, color: AppColors.red),
             onPressed: () async {
               await context.read<AuthProvider>().logout();
-              if (context.mounted) Navigator.of(context).pushReplacementNamed('/login');
+              if (context.mounted)
+                Navigator.of(context).pushReplacementNamed('/login');
             },
           ),
         ],
@@ -132,41 +150,70 @@ class _CollectorScreenState extends State<CollectorScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.green500.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.green500.withValues(alpha: 0.16)),
-                  ),
-                  child: Row(children: [
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Container(
-                      width: 48,
-                      height: 48,
-                      decoration: const BoxDecoration(color: AppColors.green500, shape: BoxShape.circle),
-                      child: const Icon(Icons.local_shipping_outlined, color: Colors.white),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(
-                        'Welcome, ${user?.name.split(' ').first ?? 'Collector'}',
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.green500.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: AppColors.green500.withValues(alpha: 0.16)),
                       ),
-                      const SizedBox(height: 3),
-                      const Text('Manage pickup and delivery tasks in one place.', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                    ])),
+                      child: Row(children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: const BoxDecoration(
+                              color: AppColors.green500,
+                              shape: BoxShape.circle),
+                          child: const Icon(Icons.local_shipping_outlined,
+                              color: Colors.white),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text(
+                                'Welcome, ${user?.name.split(' ').first ?? 'Collector'}',
+                                style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textPrimary),
+                              ),
+                              const SizedBox(height: 3),
+                              const Text(
+                                  'Manage pickup and delivery tasks in one place.',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textMuted)),
+                            ])),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(
+                          child: _MiniStat(
+                              label: 'Pickups',
+                              value: '${activeScraps.length}',
+                              icon: Icons.recycling)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: _MiniStat(
+                              label: 'Deliveries',
+                              value: '${activeDeliveries.length}',
+                              icon: Icons.local_shipping_outlined)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: _MiniStat(
+                              label: 'Done',
+                              value:
+                                  '${completedScraps.length + completedDeliveries.length}',
+                              icon: Icons.check_circle_outline)),
+                    ]),
                   ]),
-                ),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(child: _MiniStat(label: 'Pickups', value: '${activeScraps.length}', icon: Icons.recycling)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _MiniStat(label: 'Deliveries', value: '${activeDeliveries.length}', icon: Icons.local_shipping_outlined)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _MiniStat(label: 'Done', value: '${completedScraps.length + completedDeliveries.length}', icon: Icons.check_circle_outline)),
-                ]),
-              ]),
             ),
             TabBar(
               labelColor: AppColors.green500,
@@ -175,12 +222,15 @@ class _CollectorScreenState extends State<CollectorScreen> {
               tabs: [
                 Tab(text: 'Pickups (${activeScraps.length})'),
                 Tab(text: 'Deliveries (${activeDeliveries.length})'),
-                Tab(text: 'History (${completedScraps.length + completedDeliveries.length})'),
+                Tab(
+                    text:
+                        'History (${completedScraps.length + completedDeliveries.length})'),
               ],
             ),
             Expanded(
               child: _loading
-                  ? const Padding(padding: EdgeInsets.only(top: 80), child: EcoLoading())
+                  ? const Padding(
+                      padding: EdgeInsets.only(top: 80), child: EcoLoading())
                   : TabBarView(
                       children: [
                         _ScrapList(
@@ -198,11 +248,17 @@ class _CollectorScreenState extends State<CollectorScreen> {
                         _ScrapList(
                           scraps: completedScraps,
                           emptyTitle: 'No completed rides',
-                          emptySubtitle: 'Completed pickup requests will appear here.',
+                          emptySubtitle:
+                              'Completed pickup requests will appear here.',
                           history: true,
                           onRefresh: _load,
                           onStatus: _updateStatus,
-                          extraChildren: completedDeliveries.map((o) => _DeliveryCard(order: Map<String, dynamic>.from(o as Map), history: true, onStatus: (_) {})).toList(),
+                          extraChildren: completedDeliveries
+                              .map((o) => _DeliveryCard(
+                                  order: Map<String, dynamic>.from(o as Map),
+                                  history: true,
+                                  onStatus: (_) {}))
+                              .toList(),
                         ),
                       ],
                     ),
@@ -218,7 +274,8 @@ class _MiniStat extends StatelessWidget {
   final String label, value;
   final IconData icon;
 
-  const _MiniStat({required this.label, required this.value, required this.icon});
+  const _MiniStat(
+      {required this.label, required this.value, required this.icon});
 
   @override
   Widget build(BuildContext context) => Container(
@@ -231,8 +288,13 @@ class _MiniStat extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon, size: 18, color: AppColors.green400),
           const SizedBox(height: 6),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary)),
+          Text(label,
+              style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
         ]),
       );
 }
@@ -297,9 +359,11 @@ class _ScrapList extends StatelessWidget {
 class _DeliveryList extends StatelessWidget {
   final List<dynamic> orders;
   final Future<void> Function() onRefresh;
-  final Future<void> Function(Map<String, dynamic> order, String status) onStatus;
+  final Future<void> Function(Map<String, dynamic> order, String status)
+      onStatus;
 
-  const _DeliveryList({required this.orders, required this.onRefresh, required this.onStatus});
+  const _DeliveryList(
+      {required this.orders, required this.onRefresh, required this.onStatus});
 
   @override
   Widget build(BuildContext context) {
@@ -313,7 +377,8 @@ class _DeliveryList extends StatelessWidget {
             EmptyState(
               emoji: '📦',
               title: 'No assigned deliveries',
-              subtitle: 'Product orders assigned for delivery will appear here.',
+              subtitle:
+                  'Product orders assigned for delivery will appear here.',
             ),
           ],
         ),
@@ -327,7 +392,8 @@ class _DeliveryList extends StatelessWidget {
         children: orders
             .map((o) => _DeliveryCard(
                   order: Map<String, dynamic>.from(o as Map),
-                  onStatus: (status) => onStatus(Map<String, dynamic>.from(o), status),
+                  onStatus: (status) =>
+                      onStatus(Map<String, dynamic>.from(o), status),
                 ))
             .toList(),
       ),
@@ -340,18 +406,25 @@ class _DeliveryCard extends StatelessWidget {
   final ValueChanged<String> onStatus;
   final bool history;
 
-  const _DeliveryCard({required this.order, required this.onStatus, this.history = false});
+  const _DeliveryCard(
+      {required this.order, required this.onStatus, this.history = false});
 
   @override
   Widget build(BuildContext context) {
     final id = order['_id']?.toString() ?? '';
-    final status = (order['orderStatus'] ?? order['order_status'] ?? 'pending').toString();
+    final status =
+        (order['orderStatus'] ?? order['order_status'] ?? 'pending').toString();
     final customer = order['user'] ?? order['user_id'];
-    final customerName = customer is Map ? (customer['full_name'] ?? customer['name'] ?? 'Customer') : 'Customer';
-    final customerPhone = customer is Map ? customer['phone']?.toString() : null;
+    final customerName = customer is Map
+        ? (customer['full_name'] ?? customer['name'] ?? 'Customer')
+        : 'Customer';
+    final customerPhone =
+        customer is Map ? customer['phone']?.toString() : null;
     final shipping = order['shippingAddress'] ?? order['shipping_address'];
     final address = shipping is Map
-        ? [shipping['street'], shipping['city']].where((e) => e != null && e.toString().isNotEmpty).join(', ')
+        ? [shipping['street'], shipping['city']]
+            .where((e) => e != null && e.toString().isNotEmpty)
+            .join(', ')
         : shipping?.toString() ?? 'No delivery address';
     final lat = shipping is Map ? (shipping['lat'] as num?)?.toDouble() : null;
     final lng = shipping is Map ? (shipping['lng'] as num?)?.toDouble() : null;
@@ -370,19 +443,29 @@ class _DeliveryCard extends StatelessWidget {
         Row(children: [
           Expanded(
             child: Text(
-              id.length >= 8 ? 'Order #${id.substring(id.length - 8).toUpperCase()}' : 'Order',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+              id.length >= 8
+                  ? 'Order #${id.substring(id.length - 8).toUpperCase()}'
+                  : 'Order',
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary),
             ),
           ),
           StatusBadge(status),
         ]),
         const SizedBox(height: 8),
-        Text('$customerName${customerPhone != null ? ' - $customerPhone' : ''}', style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
+        Text('$customerName${customerPhone != null ? ' - $customerPhone' : ''}',
+            style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
         const SizedBox(height: 6),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.location_on_outlined, size: 16, color: AppColors.green400),
+          const Icon(Icons.location_on_outlined,
+              size: 16, color: AppColors.green400),
           const SizedBox(width: 6),
-          Expanded(child: Text(address, style: const TextStyle(fontSize: 12, color: AppColors.textMuted))),
+          Expanded(
+              child: Text(address,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textMuted))),
         ]),
         if (items.isNotEmpty) ...[
           const SizedBox(height: 8),
@@ -398,13 +481,20 @@ class _DeliveryCard extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 8),
-        Text('NPR $total', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.green400)),
+        Text('NPR $total',
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.green400)),
         if (lat != null && lng != null) ...[
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => ScrapMapScreen(initialLat: lat, initialLng: lng, title: 'Delivery Address'),
+                builder: (_) => ScrapMapScreen(
+                    initialLat: lat,
+                    initialLng: lng,
+                    title: 'Delivery Address'),
               ),
             ),
             icon: const Icon(Icons.map_outlined, size: 16),
@@ -415,9 +505,15 @@ class _DeliveryCard extends StatelessWidget {
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 8, children: [
             if (status == 'confirmed' || status == 'processing')
-              _ActionButton(label: 'Start Delivery', icon: Icons.local_shipping_outlined, onTap: () => onStatus('shipped')),
+              _ActionButton(
+                  label: 'Start Delivery',
+                  icon: Icons.local_shipping_outlined,
+                  onTap: () => onStatus('shipped')),
             if (status == 'shipped')
-              _ActionButton(label: 'Delivered', icon: Icons.done_all_rounded, onTap: () => onStatus('delivered')),
+              _ActionButton(
+                  label: 'Delivered',
+                  icon: Icons.done_all_rounded,
+                  onTap: () => onStatus('delivered')),
           ]),
         ],
       ]),
@@ -430,7 +526,8 @@ class _CollectorScrapCard extends StatelessWidget {
   final ValueChanged<String> onStatus;
   final bool history;
 
-  const _CollectorScrapCard({required this.scrap, required this.onStatus, this.history = false});
+  const _CollectorScrapCard(
+      {required this.scrap, required this.onStatus, this.history = false});
 
   @override
   Widget build(BuildContext context) {
@@ -448,20 +545,28 @@ class _CollectorScrapCard extends StatelessWidget {
           Expanded(
             child: Text(
               '${scrap.category[0].toUpperCase()}${scrap.category.substring(1)} - ${scrap.quantity.toStringAsFixed(1)} ${scrap.unit}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary),
             ),
           ),
           StatusBadge(scrap.status),
         ]),
         const SizedBox(height: 8),
         if (scrap.description.isNotEmpty)
-          Text(scrap.description, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+          Text(scrap.description,
+              style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
         if (scrap.location != null && scrap.location!.isNotEmpty) ...[
           const SizedBox(height: 8),
           Row(children: [
-            const Icon(Icons.location_on_outlined, size: 16, color: AppColors.green400),
+            const Icon(Icons.location_on_outlined,
+                size: 16, color: AppColors.green400),
             const SizedBox(width: 6),
-            Expanded(child: Text(scrap.location!, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary))),
+            Expanded(
+                child: Text(scrap.location!,
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.textPrimary))),
           ]),
         ],
         if (scrap.pickupLat != null && scrap.pickupLng != null) ...[
@@ -492,7 +597,8 @@ class _CollectorScrapCard extends StatelessWidget {
         if (history && scrap.completedAt != null) ...[
           const SizedBox(height: 8),
           Row(children: [
-            const Icon(Icons.event_available_outlined, size: 16, color: AppColors.green400),
+            const Icon(Icons.event_available_outlined,
+                size: 16, color: AppColors.green400),
             const SizedBox(width: 6),
             Text(
               'Completed: ${_formatDate(scrap.completedAt!)}',
@@ -503,12 +609,26 @@ class _CollectorScrapCard extends StatelessWidget {
         if (!history) ...[
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 8, children: [
-            if (scrap.status == 'pending' || scrap.status == 'approved')
-              _ActionButton(label: 'Accept', icon: Icons.check_rounded, onTap: () => onStatus('assigned')),
+            if (scrap.status == 'approved') ...[
+              _ActionButton(
+                  label: 'Accept',
+                  icon: Icons.check_rounded,
+                  onTap: () => onStatus('assigned')),
+              _ActionButton(
+                  label: 'Decline',
+                  icon: Icons.close_rounded,
+                  onTap: () => onStatus('declined')),
+            ],
             if (scrap.status == 'assigned')
-              _ActionButton(label: 'Collected', icon: Icons.inventory_2_outlined, onTap: () => onStatus('collected')),
+              _ActionButton(
+                  label: 'Collected',
+                  icon: Icons.inventory_2_outlined,
+                  onTap: () => onStatus('collected')),
             if (scrap.status == 'collected')
-              _ActionButton(label: 'Complete', icon: Icons.done_all_rounded, onTap: () => onStatus('completed')),
+              _ActionButton(
+                  label: 'Complete',
+                  icon: Icons.done_all_rounded,
+                  onTap: () => onStatus('completed')),
           ]),
         ],
       ]),
@@ -526,7 +646,8 @@ class _ActionButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
 
-  const _ActionButton({required this.label, required this.icon, required this.onTap});
+  const _ActionButton(
+      {required this.label, required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

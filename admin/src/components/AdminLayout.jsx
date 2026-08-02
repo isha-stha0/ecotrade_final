@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -14,16 +14,38 @@ import {
   X,
   User as UserIcon,
   ChevronDown,
-  Tags
+  Tags,
+  Bell,
+  CheckCheck,
+  LogOut,
+  Upload
 } from 'lucide-react';
+import { notificationAPI } from '../api/api';
 
 const ECOTRADE_LOGO = '/Eco%20Trade%20Logo-04.jpg.jpeg';
+
+const timeAgo = (date) => {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 60000));
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1440)}d ago`;
+};
 
 // ProfileMenu declared at module scope to avoid creating components during render
 const ProfileMenu = ({ user, onLogout }) => {
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const menuRef = useRef(null);
   const { uploadProfilePhoto } = useAuth();
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, []);
 
   const handleFileChange = async (e) => {
     const f = e.target.files?.[0];
@@ -40,30 +62,24 @@ const ProfileMenu = ({ user, onLogout }) => {
   };
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="account-menu" ref={menuRef}>
       <input id="profile-photo-input" type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
-      <button onClick={() => setOpen((s) => !s)} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-card)' }}>
-          {user?.profile_photo ? <img src={user.profile_photo} alt={user.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} style={{ color: 'var(--text-muted)' }} />}
-        </div>
-        <ChevronDown size={16} />
+      <button onClick={() => setOpen((s) => !s)} className="account-trigger" aria-expanded={open}>
+        <span className="account-avatar">{user?.profile_photo ? <img src={user.profile_photo} alt={user.full_name} /> : <UserIcon size={18} />}</span>
+        <span className="account-trigger-copy"><strong>{user?.full_name || 'Administrator'}</strong><small>Admin account</small></span>
+        <ChevronDown size={16} className={open ? 'account-chevron-open' : ''} />
       </button>
       {open && (
-        <div style={{ position: 'absolute', right: 0, marginTop: 8, width: 260, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-md)', padding: '0.5rem' }}>
-          <div style={{ display: 'flex', gap: '0.75rem', padding: '0.5rem', alignItems: 'center' }}>
-            <label htmlFor="profile-photo-input" style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              {user?.profile_photo ? <img src={user.profile_photo} alt={user.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} style={{ color: 'var(--text-muted)' }} />}
-            </label>
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <strong style={{ color: 'var(--text-h)' }}>{user?.full_name || 'Administrator'}</strong>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email || 'admin@ecotrade.com'}</span>
-            </div>
+        <div className="account-panel">
+          <div className="account-panel-profile">
+            <label htmlFor="profile-photo-input" className="account-avatar account-avatar-large" title="Change profile photo">{user?.profile_photo ? <img src={user.profile_photo} alt={user.full_name} /> : <UserIcon size={22} />}<span className="avatar-upload"><Upload size={12} /></span></label>
+            <div><strong>{user?.full_name || 'Administrator'}</strong><span>{user?.email || 'admin@ecotrade.com'}</span><em>Administrator</em></div>
           </div>
-          <div style={{ borderTop: '1px solid var(--border-color)', marginTop: 8, paddingTop: 8, display: 'flex', gap: 8 }}>
-            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setOpen(false)}>Close</button>
-            <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => { onLogout(); setOpen(false); }}>Sign Out</button>
+          <div className="account-panel-actions">
+            <label htmlFor="profile-photo-input" className="account-upload-button"><Upload size={15} /> Change photo</label>
+            <button className="account-signout" onClick={() => { onLogout(); setOpen(false); }}><LogOut size={15} /> Sign out</button>
           </div>
-          {uploading && <div style={{ marginTop: 8, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Uploading...</div>}
+          {uploading && <div className="account-uploading">Uploading photo…</div>}
         </div>
       )}
     </div>
@@ -77,6 +93,31 @@ const AdminLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
   const [riderOpen, setRiderOpen] = useState(() => ['/scrap-requests', '/delivery-requests'].includes(location.pathname));
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationMenuRef = useRef(null);
+
+  const loadNotifications = async () => {
+    try { setNotifications(await notificationAPI.getMine()); } catch (_) { /* non-blocking */ }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+    const id = window.setInterval(loadNotifications, 15000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event) => {
+      if (notificationMenuRef.current && !notificationMenuRef.current.contains(event.target)) {
+        setNotificationsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, []);
+
+  const unreadCount = notifications.filter((item) => !item.is_read).length;
 
   
 
@@ -88,6 +129,7 @@ const AdminLayout = () => {
     // Products menu will render as a grouped item below
     { name: 'Products Store', path: '/products', icon: ShoppingBag, grouped: 'products' },
     { name: 'Sales Orders', path: '/orders', icon: ClipboardList },
+    { name: 'Notifications', path: '/notifications', icon: Bell },
     { name: 'Analytics Reports', path: '/reports', icon: BarChart3 },
     { name: 'Complaints & Feedback', path: '/complaints', icon: MessageSquareWarning },
   ];
@@ -100,8 +142,18 @@ const AdminLayout = () => {
   return (
     <div className="app-container">
       {/* Top header with profile */}
-      <header style={{ position: 'fixed', top: 0, right: 0, left: 260, height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 1.25rem', zIndex: 1050, background: 'transparent' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <header className="admin-topbar">
+        <div className="topbar-actions">
+          <div className="notification-menu" ref={notificationMenuRef}>
+            <button className={`notification-trigger ${notificationsOpen ? 'is-open' : ''}`} aria-label="Notifications" onClick={() => setNotificationsOpen((value) => !value)} aria-expanded={notificationsOpen}>
+              <Bell size={18} />
+              {unreadCount > 0 && <span className="notification-count">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+            </button>
+            {notificationsOpen && <section className="notification-panel">
+              <div className="notification-panel-header"><div><h3>Notifications</h3><span>{unreadCount ? `${unreadCount} unread update${unreadCount === 1 ? '' : 's'}` : 'You are all caught up'}</span></div><button className="mark-read-button" onClick={async () => { await notificationAPI.markAllRead(); loadNotifications(); }} disabled={!unreadCount}><CheckCheck size={15} /> Mark all read</button></div>
+              <div className="notification-list">{notifications.length === 0 ? <div className="notification-empty"><Bell size={22} /><strong>No notifications yet</strong><span>Order and pickup updates will appear here.</span></div> : notifications.slice(0, 10).map((item) => <button key={item._id} className={`notification-item ${item.is_read ? '' : 'is-unread'}`} onClick={async () => { if (!item.is_read) { await notificationAPI.markRead(item._id); loadNotifications(); } }}><span className="notification-item-dot" /><span className="notification-item-copy"><strong>{item.title}</strong><span>{item.message}</span><small>{timeAgo(item.createdAt)}</small></span></button>)}</div>
+            </section>}
+          </div>
           <ProfileMenu user={user} onLogout={handleLogout} />
         </div>
       </header>

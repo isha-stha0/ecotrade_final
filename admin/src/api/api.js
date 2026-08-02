@@ -282,4 +282,10 @@ export const dashboardAPI = {
   },
 };
 
+export const notificationAPI = {
+  getMine: async () => (await api.get('/api/notifications')).data,
+  markRead: async (id) => (await api.put(`/api/notifications/${id}/read`)).data,
+  markAllRead: async () => (await api.put('/api/notifications/read-all')).data,
+};
+
 export default api;
