@@ -73,7 +73,7 @@ const Dashboard = () => {
     { name: 'Total Users', value: stats?.totalUsers || 0, icon: Users, color: '#6366f1' },
     { name: 'Scrap Collected', value: stats?.totalScraps || 0, icon: Recycle, color: '#10b981' },
     { name: 'Listed Products', value: stats?.totalProducts || 0, icon: ShoppingBag, color: '#0ea5e9' },
-    { name: 'Sales Completed', value: stats?.totalOrders || 0, icon: TrendingUp, color: '#ec4899' },
+    { name: 'Total Sales', value: `Rs. ${Number(stats?.totalSales || 0).toLocaleString()}`, icon: TrendingUp, color: '#ec4899' },
   ];
 
   return (

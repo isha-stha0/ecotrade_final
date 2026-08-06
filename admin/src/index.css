@@ -486,6 +486,19 @@ a:hover {
   color: #0c4a6e;
 }
 
+.orders-table th:last-child,
+.orders-table td.orders-action-cell {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: #ffffff;
+  box-shadow: -8px 0 12px rgba(15, 23, 42, 0.06);
+}
+
+.orders-table th:last-child {
+  z-index: 3;
+}
+
 /* Account Directory Pages */
 .directory-page {
   display: flex;

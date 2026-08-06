@@ -1,17 +1,19 @@
 const nodemailer = require('nodemailer');
+const { getSmtpConfig } = require('./smtpConfig');
 
 const sendEmail = async ({ to, subject, text, html }) => {
   try {
     let transporter;
-    const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
-    const smtpPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+    const smtp = getSmtpConfig();
+    const smtpUser = smtp.user;
+    const smtpPass = smtp.pass;
     const isSmtpConfigured = smtpUser && smtpPass;
 
     if (isSmtpConfigured) {
       transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_PORT === '465',
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.secure,
         auth: {
           user: smtpUser,
           pass: smtpPass,

@@ -28,6 +28,8 @@ const orderSchema = new Schema(
     subtotal_amount:  { type: Number },
     points_used:      { type: Number, default: 0 },
     discount_amount:  { type: Number, default: 0 },
+    delivery_zone:    { type: String, enum: ['inside_ringroad', 'outside_ringroad'], default: 'inside_ringroad' },
+    delivery_charge:  { type: Number, default: 100 },
     total_amount:     { type: Number, required: true, alias: 'totalAmount' },
     order_status: {
       type: String,

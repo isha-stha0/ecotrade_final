@@ -15,11 +15,21 @@ exports.getUserDashboard = async (req, res) => {
 
 exports.getAdminDashboard = async (req, res) => {
   try {
-    const [totalUsers, totalScraps, totalProducts, totalOrders, pendingScraps] = await Promise.all([
-      User.countDocuments(), 
+    const [totalUsers, totalScraps, totalProducts, totalOrders, totalSales, pendingScraps] = await Promise.all([
+      User.countDocuments({
+        $or: [
+          { role: { $in: ['user', 'customer', 'contributor'] } },
+          { role: { $exists: false } },
+          { role: null },
+        ],
+      }), 
       Scrap.countDocuments(),
       Product.countDocuments({ isActive: true }), 
       Order.countDocuments(),
+      Order.aggregate([
+        { $match: { payment_status: 'paid' } },
+        { $group: { _id: null, total: { $sum: '$total_amount' } } },
+      ]),
       Scrap.countDocuments({ status: 'pending' })
     ]);
     
@@ -31,7 +41,7 @@ exports.getAdminDashboard = async (req, res) => {
     ]);
     
     res.json({ 
-      stats: { totalUsers, totalScraps, totalProducts, totalOrders, pendingScraps }, 
+      stats: { totalUsers, totalScraps, totalProducts, totalOrders, totalSales: totalSales[0]?.total || 0, pendingScraps }, 
       recentScraps, 
       recentOrders, 
       scrapByCategory 
