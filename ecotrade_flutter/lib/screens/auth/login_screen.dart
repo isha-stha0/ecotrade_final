@@ -5,7 +5,8 @@ import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onRegister;
-  const LoginScreen({super.key, required this.onRegister});
+  final String? redirectRoute;
+  const LoginScreen({super.key, required this.onRegister, this.redirectRoute});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -30,7 +31,10 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
     try {
       await context.read<AuthProvider>().login(_email.text.trim(), _pass.text);
-      if (mounted) Navigator.of(context).pushReplacementNamed('/main');
+      if (mounted) {
+        Navigator.of(context)
+            .pushReplacementNamed(widget.redirectRoute ?? '/main');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -91,7 +95,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: InputDecoration(
                     labelText: 'Email',
                     hintText: 'you@example.com',
-                    hintStyle: TextStyle(color: darkGreen.withValues(alpha: 0.5)),
+                    hintStyle:
+                        TextStyle(color: darkGreen.withValues(alpha: 0.5)),
                     labelStyle: const TextStyle(color: darkGreen),
                     prefixIcon: Icon(
                       Icons.email_outlined,
@@ -133,7 +138,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: InputDecoration(
                     labelText: 'Password',
                     hintText: '••••••••',
-                    hintStyle: TextStyle(color: darkGreen.withValues(alpha: 0.5)),
+                    hintStyle:
+                        TextStyle(color: darkGreen.withValues(alpha: 0.5)),
                     labelStyle: const TextStyle(color: darkGreen),
                     prefixIcon: Icon(
                       Icons.lock_outline,
@@ -260,7 +266,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: BoxDecoration(
                     color: Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: lightGreen.withValues(alpha: 0.3)),
+                    border:
+                        Border.all(color: lightGreen.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

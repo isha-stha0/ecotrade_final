@@ -7,6 +7,7 @@ const ScrapRequest = require('../models/ScrapRequest');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const CollectorProfile = require('../models/CollectorProfile');
+const { getSmtpConfig } = require('../utils/smtpConfig');
 
 /**
  * Report Scheduler Service
@@ -23,11 +24,14 @@ class ReportScheduler {
    * Initialize email transporter
    */
   initializeMailer() {
+    const smtp = getSmtpConfig();
     this.mailer = nodemailer.createTransport({
-      service: process.env.EMAIL_SERVICE || 'gmail',
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+        user: smtp.user,
+        pass: smtp.pass,
       },
     });
   }
@@ -84,7 +88,7 @@ class ReportScheduler {
         return { stats, start, end, type: 'scrap_summary' };
       } else if (reportType === 'sales_summary') {
         const stats = await Order.aggregate([
-          { $match: dateFilter },
+          { $match: { ...dateFilter, payment_status: 'paid' } },
           {
             $group: {
               _id: '$order_status',
@@ -193,6 +197,7 @@ class ReportScheduler {
   async sendReportEmail(scheduledReport, reportData, csvContent) {
     try {
       if (!this.mailer) this.initializeMailer();
+      const smtp = getSmtpConfig();
 
       const timestamp = new Date().toISOString().split('T')[0];
       const filename = `${scheduledReport.report_type}_${timestamp}.csv`;
@@ -223,7 +228,7 @@ class ReportScheduler {
       // Send email to each recipient
       for (const recipient of scheduledReport.recipients) {
         await this.mailer.sendMail({
-          from: process.env.EMAIL_USER,
+          from: process.env.EMAIL_FROM || `"EcoTrade Support" <${smtp.user}>`,
           to: recipient,
           subject,
           html: htmlBody,

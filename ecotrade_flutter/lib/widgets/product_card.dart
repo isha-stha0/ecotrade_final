@@ -35,20 +35,21 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final category = product.category.isEmpty ? 'Eco Product' : product.category;
+    final category =
+        product.category.isEmpty ? 'Eco Product' : product.category;
     final madeFrom = product.madeFrom ?? '';
     final ecoImpact = product.ecoImpact ?? '';
     final inStock = product.stock > 0;
 
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border),
             boxShadow: [
               BoxShadow(
@@ -62,11 +63,12 @@ class ProductCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                flex: 46,
+                flex: 42,
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: _ProductImage(imageUrl: product.imageUrl, emoji: _emoji),
+                      child: _ProductImage(
+                          imageUrl: product.imageUrl, emoji: _emoji),
                     ),
                     Positioned(
                       top: 8,
@@ -84,11 +86,13 @@ class ProductCard extends StatelessWidget {
                           color: Colors.white.withOpacity(0.78),
                           child: Center(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
                               decoration: BoxDecoration(
                                 color: AppColors.red.withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: AppColors.red.withOpacity(0.35)),
+                                border: Border.all(
+                                    color: AppColors.red.withOpacity(0.35)),
                               ),
                               child: const Text(
                                 'OUT OF STOCK',
@@ -106,7 +110,7 @@ class ProductCard extends StatelessWidget {
                 ),
               ),
               Expanded(
-                flex: 54,
+                flex: 58,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                   child: Column(
@@ -138,7 +142,8 @@ class ProductCard extends StatelessWidget {
                       else
                         Text(
                           product.description,
-                          style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                          style: const TextStyle(
+                              fontSize: 10, color: AppColors.textMuted),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -155,7 +160,7 @@ class ProductCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
-                      const Spacer(),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
@@ -176,7 +181,8 @@ class ProductCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: inStock ? AppColors.textMuted : AppColors.red,
+                              color:
+                                  inStock ? AppColors.textMuted : AppColors.red,
                             ),
                           ),
                         ],
@@ -184,7 +190,7 @@ class ProductCard extends StatelessWidget {
                       const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
-                        height: 32,
+                        height: 38,
                         child: ElevatedButton.icon(
                           onPressed: inStock ? onAddToCart : null,
                           icon: const Icon(Icons.add_shopping_cart, size: 15),
@@ -194,8 +200,10 @@ class ProductCard extends StatelessWidget {
                             backgroundColor: AppColors.darkGreen,
                             foregroundColor: Colors.white,
                             disabledBackgroundColor: AppColors.textDim,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            textStyle: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w800),
                           ),
                         ),
                       ),
@@ -241,7 +249,8 @@ class _ProductImage extends StatelessWidget {
             child: SizedBox(
               width: 22,
               height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.lightGreen),
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: AppColors.lightGreen),
             ),
           );
         },

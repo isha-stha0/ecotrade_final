@@ -282,7 +282,7 @@ exports.generateReport = async (req, res) => {
 
     } else if (report_type === 'sales_summary') {
       const stats = await Order.aggregate([
-        { $match: dateFilter },
+        { $match: { ...dateFilter, payment_status: 'paid' } },
         {
           $group: {
             _id: '$order_status',

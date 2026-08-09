@@ -40,25 +40,21 @@ const generatePaymentHash = (totalAmount, transactionUUID, productCode = ESEWA_C
  * @param {string} refId - Reference ID from eSewa
  * @param {string} orderId - Our order ID
  */
-const verifyPayment = async (refId, orderId) => {
+const verifyPayment = async (refId, transactionUUID, totalAmount) => {
   return new Promise((resolve, reject) => {
     try {
       const postData = new URLSearchParams({
         product_code: ESEWA_CONFIG.MERCHANT_CODE,
-        total_amount: '100', // Will be overridden by actual amount
-        transaction_uuid: orderId,
+        total_amount: Number(totalAmount).toFixed(0),
+        transaction_uuid: transactionUUID,
         ref_id: refId,
       });
 
       const gateway = new URL(ESEWA_CONFIG.GATEWAY_URL);
       const options = {
         hostname: gateway.hostname,
-        path: gateway.pathname,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': postData.length,
-        },
+        path: `${gateway.pathname}?${postData.toString()}`,
+        method: 'GET',
       };
 
       const req = https.request(options, (res) => {
@@ -145,7 +141,7 @@ const processPaymentCallback = async (esewaData) => {
       throw new Error('Missing payment reference or transaction ID');
     }
 
-    const verification = await verifyPayment(ref_id, transaction_uuid);
+    const verification = await verifyPayment(ref_id, transaction_uuid, esewaData.total_amount);
 
     return {
       success: verification.status === 'COMPLETE',

@@ -4,7 +4,8 @@ import '../../services/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   final VoidCallback onLogin;
-  const RegisterScreen({super.key, required this.onLogin});
+  final String? redirectRoute;
+  const RegisterScreen({super.key, required this.onLogin, this.redirectRoute});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -45,7 +46,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'role': _role,
         'phone': _phone.text.trim(),
       });
-      if (mounted) Navigator.of(context).pushReplacementNamed('/main');
+      if (mounted) {
+        Navigator.of(context)
+            .pushReplacementNamed(widget.redirectRoute ?? '/main');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -365,35 +369,41 @@ class _RoleCard extends StatelessWidget {
               ),
               child: Icon(
                 icon,
-                color: isSelected ? const Color(0xFF05401C) : Colors.grey.shade600,
+                color:
+                    isSelected ? const Color(0xFF05401C) : Colors.grey.shade600,
                 size: 20,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: isSelected ? const Color(0xFF05401C) : Colors.grey.shade700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  desc,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isSelected
-                        ? const Color(0xFF05401C).withOpacity(0.7)
-                        : Colors.grey.shade500,
-                  ),
-                ),
-              ]),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected
+                            ? const Color(0xFF05401C)
+                            : Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      desc,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isSelected
+                            ? const Color(0xFF05401C).withOpacity(0.7)
+                            : Colors.grey.shade500,
+                      ),
+                    ),
+                  ]),
             ),
             if (isSelected)
-              const Icon(Icons.check_circle_rounded, color: Color(0xFF44A81D), size: 20),
+              const Icon(Icons.check_circle_rounded,
+                  color: Color(0xFF44A81D), size: 20),
           ],
         ),
       ),

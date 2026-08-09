@@ -1,12 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { orderAPI } from '../api/api';
-import { Loader2, Eye, CreditCard, MapPin, Package, Receipt, ShoppingBag, User, CalendarDays } from 'lucide-react';
+import { Loader2, Eye, CreditCard, MapPin, Receipt, User, CalendarDays } from 'lucide-react';
 
 const statusTone = (status) => {
   if (status === 'delivered' || status === 'paid') return 'success';
   if (status === 'cancelled' || status === 'failed' || status === 'refunded') return 'danger';
   if (status === 'pending') return 'pending';
   return 'info';
+};
+
+const paymentMethodLabel = (method) => {
+  if (method === 'esewa') return 'eSewa';
+  if (method === 'cash_on_delivery' || method === 'cod') return 'COD';
+  return (method || 'Cash on Delivery').replace(/_/g, ' ');
 };
 
 const formatAddress = (address) => {
@@ -75,44 +81,36 @@ const Orders = () => {
     }
   };
 
-  const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
+  const totalRevenue = orders
+    .filter((order) => order.payment_status === 'paid')
+    .reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
   const paidOrders = orders.filter((order) => order.payment_status === 'paid').length;
-  const pendingOrders = orders.filter((order) => order.order_status === 'pending').length;
 
   return (
     <div className="directory-page">
-      <section className="directory-hero">
+      <section className="directory-hero" style={{ paddingBottom: '1.25rem' }}>
         <div className="directory-hero-copy">
-          <span className="directory-eyebrow">Store Fulfillment</span>
-          <h1>Sales Orders</h1>
-          <p>Review customer product orders, payment state, shipping address, and fulfillment status.</p>
-        </div>
-        <div className="directory-hero-badge">
-          <ShoppingBag size={20} />
-          <span>{orders.length}</span>
-          <small>orders</small>
+          <span className="directory-eyebrow">Paid orders</span>
+          <h1>Orders</h1>
+          <p>Check paid orders, delivery addresses, and fulfilment status.</p>
         </div>
       </section>
 
       <div className="directory-stats">
         <div className="directory-stat">
           <span className="stat-icon stat-icon-green"><Receipt size={18} /></span>
-          <div><strong>Rs. {totalRevenue}</strong><small>Total shown</small></div>
+          <div><strong>Rs. {totalRevenue.toLocaleString()}</strong><small>Paid sales</small></div>
         </div>
         <div className="directory-stat">
           <span className="stat-icon stat-icon-blue"><CreditCard size={18} /></span>
           <div><strong>{paidOrders}</strong><small>Paid orders</small></div>
         </div>
-        <div className="directory-stat">
-          <span className="stat-icon stat-icon-amber"><Package size={18} /></span>
-          <div><strong>{pendingOrders}</strong><small>Pending orders</small></div>
-        </div>
       </div>
 
-      <div className="card" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="card" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', padding: '0.75rem 1rem' }}>
+        <span className="text-muted" style={{ fontSize: '0.8rem', marginRight: '0.25rem' }}>Show:</span>
         {[
           { value: '', label: 'All Orders' },
-          { value: 'pending', label: 'Pending' },
           { value: 'confirmed', label: 'Confirmed' },
           { value: 'shipped', label: 'Shipped' },
           { value: 'delivered', label: 'Delivered' },
@@ -135,14 +133,14 @@ const Orders = () => {
         </div>
       ) : (
         <div className="table-container directory-table">
-          <table className="data-table">
+          <table className="data-table orders-table">
             <thead>
               <tr>
                 <th>Order</th>
                 <th>Customer</th>
                 <th>Items</th>
-                <th>Total Bill</th>
-                <th>Order Status</th>
+                <th>Total / delivery</th>
+                <th>Order status</th>
                 <th>Payment</th>
                 <th>Date</th>
                 <th>Action</th>
@@ -152,7 +150,7 @@ const Orders = () => {
               {orders.length > 0 ? (
                 orders.map((order) => (
                   <tr key={order._id} className="directory-row">
-                    <td>
+                    <td className="orders-action-cell">
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                         <strong style={{ fontFamily: 'monospace' }}>#{order._id.slice(-8).toUpperCase()}</strong>
                         <span className="text-muted" style={{ fontSize: '0.78rem' }}>{order.payment_method?.replace(/_/g, ' ') || 'cash on delivery'}</span>
@@ -171,13 +169,16 @@ const Orders = () => {
                       <span className="order-item-pill">{order.items?.length || 0} product(s)</span>
                     </td>
                     <td>
-                      <span className="order-total-pill">Rs. {order.total_amount || 0}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span className="order-total-pill">Rs. {order.total_amount || 0}</span>
+                        <span className="text-muted" style={{ fontSize: '0.72rem' }}>
+                          Delivery: Rs. {order.delivery_charge ?? (order.delivery_zone === 'outside_ringroad' ? 200 : 100)}
+                        </span>
+                      </div>
                     </td>
+                    <td><span className={`badge badge-${statusTone(order.order_status)}`}>{order.order_status}</span></td>
                     <td>
-                      <span className={`badge badge-${statusTone(order.order_status)}`}>{order.order_status}</span>
-                    </td>
-                    <td>
-                      <span className={`badge badge-${statusTone(order.payment_status)}`}>{order.payment_status}</span>
+                      <span className="badge badge-info">{paymentMethodLabel(order.payment_method)}</span>
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
@@ -227,11 +228,18 @@ const Orders = () => {
             <div className="modal-body order-modal-body">
               <div className="order-summary-strip">
                 <div><small>Total Bill</small><strong>Rs. {selectedOrder.total_amount || 0}</strong></div>
-                <div><small>Payment</small><strong>{selectedOrder.payment_status}</strong></div>
+                <div><small>Payment</small><strong>{paymentMethodLabel(selectedOrder.payment_method)}</strong></div>
                 <div><small>Status</small><strong>{selectedOrder.order_status}</strong></div>
               </div>
 
               <section>
+                <div style={{ marginBottom: '1rem' }}>
+                  <h4 className="order-section-title">Delivery charge</h4>
+                  <div className="order-item-row">
+                    <span>{selectedOrder.delivery_zone === 'outside_ringroad' ? 'Outside Ring Road' : 'Inside Ring Road'}</span>
+                    <strong>Rs. {selectedOrder.delivery_charge ?? (selectedOrder.delivery_zone === 'outside_ringroad' ? 200 : 100)}</strong>
+                  </div>
+                </div>
                 <h4 className="order-section-title">Purchased Items</h4>
                 <div className="order-items-list">
                   {selectedOrder.items?.map((item, idx) => (

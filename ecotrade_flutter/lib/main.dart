@@ -10,6 +10,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/shop/shop_screen.dart';
+import 'screens/shop/checkout_screen.dart';
 import 'screens/scrap/submit_scrap_screen.dart';
 import 'screens/orders/orders_screen.dart';
 import 'screens/orders/payment_result_screen.dart';
@@ -52,8 +53,12 @@ class EcoTradeApp extends StatelessWidget {
       initialRoute: '/splash',
       routes: {
         '/splash': (_) => const SplashScreen(),
-        '/onboarding': (_) => const OnboardingScreen(),
-        '/login': (_) => const _AuthFlow(),
+        '/onboarding': (_) => const ProjectAboutScreen(),
+        '/login': (context) => _AuthFlow(
+              redirectRoute:
+                  ModalRoute.of(context)?.settings.arguments as String?,
+            ),
+        '/checkout': (_) => const _CheckoutGuard(),
         '/main': (_) => const _MainGuard(),
         '/orders/success': (_) => const PaymentResultScreen(success: true),
         '/orders/failed': (_) => const PaymentResultScreen(success: false),
@@ -65,7 +70,8 @@ class EcoTradeApp extends StatelessWidget {
 
 // ---------- Authentication flow (toggles login/register) ----------
 class _AuthFlow extends StatefulWidget {
-  const _AuthFlow();
+  final String? redirectRoute;
+  const _AuthFlow({this.redirectRoute});
 
   @override
   State<_AuthFlow> createState() => _AuthFlowState();
@@ -77,8 +83,34 @@ class _AuthFlowState extends State<_AuthFlow> {
   @override
   Widget build(BuildContext context) {
     return _login
-        ? LoginScreen(onRegister: () => setState(() => _login = false))
-        : RegisterScreen(onLogin: () => setState(() => _login = true));
+        ? LoginScreen(
+            onRegister: () => setState(() => _login = false),
+            redirectRoute: widget.redirectRoute,
+          )
+        : RegisterScreen(
+            onLogin: () => setState(() => _login = true),
+            redirectRoute: widget.redirectRoute,
+          );
+  }
+}
+
+class _CheckoutGuard extends StatelessWidget {
+  const _CheckoutGuard();
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (auth.loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (!auth.isLoggedIn) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => Navigator.of(context)
+            .pushReplacementNamed('/login', arguments: '/checkout'),
+      );
+      return const SizedBox();
+    }
+    return const CheckoutScreen();
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/cart_provider.dart';
+import '../../services/auth_provider.dart';
 import '../../models/models.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/widgets.dart';
@@ -75,6 +76,10 @@ class _ShopScreenState extends State<ShopScreen> {
 
   void _addToCart(ProductModel p) {
     context.read<CartProvider>().addItem(p);
+    if (!context.read<AuthProvider>().isLoggedIn) {
+      Navigator.of(context).pushNamed('/login');
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${p.name} added to cart!'),
@@ -105,9 +110,11 @@ class _ShopScreenState extends State<ShopScreen> {
               icon: Badge(
                 isLabelVisible: cart.count > 0,
                 label: Text('${cart.count}'),
-                child: const Icon(Icons.shopping_cart_outlined, color: AppColors.darkGreen),
+                child: const Icon(Icons.shopping_cart_outlined,
+                    color: AppColors.darkGreen),
               ),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())),
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const CartScreen())),
             ),
           ),
           const SizedBox(width: 6),
@@ -227,70 +234,70 @@ class _ShopScreenState extends State<ShopScreen> {
                         buttonLabel: 'Retry',
                         onButton: _load,
                       )
-                : _products.isEmpty
-                    ? const EmptyState(
-                        emoji: '🛍️',
-                        title: 'No products found',
-                        subtitle: 'Try a different search or category',
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        color: AppColors.lightGreen,
-                        backgroundColor: Colors.white,
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            // Calculate columns based on available width
-                            int crossAxisCount;
-                            double cardHeight;
-                            double spacing;
+                    : _products.isEmpty
+                        ? const EmptyState(
+                            emoji: '🛍️',
+                            title: 'No products found',
+                            subtitle: 'Try a different search or category',
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            color: AppColors.lightGreen,
+                            backgroundColor: Colors.white,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                // Calculate columns based on available width
+                                int crossAxisCount;
+                                double cardHeight;
+                                double spacing;
 
-                            final width = constraints.maxWidth;
-                            if (width < 360) {
-                              crossAxisCount = 1;
-                              cardHeight = 360;
-                              spacing = 14;
-                            } else if (width < 600) {
-                              crossAxisCount = 2;
-                              cardHeight = 315;
-                              spacing = 12;
-                            } else if (width < 900) {
-                              crossAxisCount = 3;
-                              cardHeight = 320;
-                              spacing = 14;
-                            } else {
-                              crossAxisCount = 4;
-                              cardHeight = 330;
-                              spacing = 18;
-                            }
+                                final width = constraints.maxWidth;
+                                if (width < 360) {
+                                  crossAxisCount = 1;
+                                  cardHeight = 360;
+                                  spacing = 14;
+                                } else if (width < 600) {
+                                  crossAxisCount = 2;
+                                  cardHeight = 315;
+                                  spacing = 12;
+                                } else if (width < 900) {
+                                  crossAxisCount = 3;
+                                  cardHeight = 320;
+                                  spacing = 14;
+                                } else {
+                                  crossAxisCount = 4;
+                                  cardHeight = 330;
+                                  spacing = 18;
+                                }
 
-                            return GridView.builder(
-                              padding: EdgeInsets.all(spacing),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                crossAxisSpacing: spacing,
-                                mainAxisSpacing: spacing,
-                                mainAxisExtent: cardHeight,
-                              ),
-                              itemCount: _products.length,
-                              itemBuilder: (_, i) {
-                                final product = _products[i];
-                                return ProductCard(
-                                  product: product,
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          ProductDetailScreen(product: product),
-                                    ),
+                                return GridView.builder(
+                                  padding: EdgeInsets.all(spacing),
+                                  gridDelegate:
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: crossAxisCount,
+                                    crossAxisSpacing: spacing,
+                                    mainAxisSpacing: spacing,
+                                    mainAxisExtent: cardHeight,
                                   ),
-                                  onAddToCart: () => _addToCart(product),
+                                  itemCount: _products.length,
+                                  itemBuilder: (_, i) {
+                                    final product = _products[i];
+                                    return ProductCard(
+                                      product: product,
+                                      onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ProductDetailScreen(
+                                              product: product),
+                                        ),
+                                      ),
+                                      onAddToCart: () => _addToCart(product),
+                                    );
+                                  },
                                 );
                               },
-                            );
-                          },
-                        ),
-                      ),
+                            ),
+                          ),
           ),
         ],
       ),

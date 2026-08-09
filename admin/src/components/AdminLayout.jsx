@@ -191,6 +191,7 @@ const AdminLayout = () => {
           zIndex: 1000,
           display: 'flex',
           flexDirection: 'column',
+          overflow: 'hidden',
           transition: 'transform 0.3s ease',
           transform: mobileOpen ? 'translateX(0)' : undefined
         }}
@@ -198,7 +199,7 @@ const AdminLayout = () => {
       >
         {/* Brand Header */}
         <div style={{
-          padding: '1.75rem 1.5rem',
+          padding: '1.25rem 1.35rem',
           borderBottom: '1px solid var(--border-color)',
           display: 'flex',
           alignItems: 'center',
@@ -236,11 +237,13 @@ const AdminLayout = () => {
         {/* Menu Links */}
         <nav style={{
           flexGrow: 1,
-          padding: '1.5rem 1rem',
+          padding: '1rem 0.85rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.35rem',
-          overflowY: 'auto'
+          minHeight: 0,
+          flexShrink: 1,
+          gap: '0.2rem',
+          overflow: 'hidden'
         }}>
           {menuItems.map((item) => {
             if (item.grouped) {
@@ -260,13 +263,13 @@ const AdminLayout = () => {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.85rem',
-                      padding: '0.75rem 1rem',
+                      padding: '0.62rem 0.85rem',
                       borderRadius: '10px',
                       color: isActive ? 'var(--text-h)' : 'var(--text-muted)',
                       background: isActive ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
                       border: isActive ? '1px solid rgba(16, 185, 129, 0.12)' : '1px solid transparent',
                       fontWeight: isActive ? 600 : 500,
-                      fontSize: '0.925rem',
+                      fontSize: '0.88rem',
                       transition: 'all 0.2s ease',
                       cursor: 'pointer'
                     }}
@@ -310,13 +313,13 @@ const AdminLayout = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.85rem',
-                  padding: '0.75rem 1rem',
+                  padding: '0.62rem 0.85rem',
                   borderRadius: '10px',
                   color: isActive ? 'var(--text-h)' : 'var(--text-muted)',
                   background: isActive ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
                   border: isActive ? '1px solid rgba(16, 185, 129, 0.12)' : '1px solid transparent',
                   fontWeight: isActive ? 600 : 500,
-                  fontSize: '0.925rem',
+                  fontSize: '0.88rem',
                   transition: 'all 0.2s ease'
                 }}
                 className="nav-link"
@@ -350,6 +353,8 @@ const AdminLayout = () => {
             transform: translateX(0) !important;
           }
         }
+        .sidebar nav { scrollbar-width: none; }
+        .sidebar nav::-webkit-scrollbar { display: none; }
         .nav-link:hover {
           color: var(--text-h) !important;
           background: rgba(255, 255, 255, 0.02) !important;

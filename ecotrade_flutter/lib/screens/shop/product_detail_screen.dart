@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../services/cart_provider.dart';
+import '../../services/auth_provider.dart';
 import '../../utils/app_theme.dart';
 import 'cart_screen.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final ProductModel product;
-  const ProductDetailScreen({super.key, required this.product});
+  final bool requireSignIn;
+  const ProductDetailScreen(
+      {super.key, required this.product, this.requireSignIn = false});
 
   @override
   State<ProductDetailScreen> createState() => _ProductDetailScreenState();
@@ -28,17 +31,34 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   String get _name => widget.product.name;
-  String get _category => widget.product.category.isEmpty ? 'Uncategorized' : widget.product.category;
-  String get _description =>
-      widget.product.description.isEmpty ? 'No description available.' : widget.product.description;
+  String get _category => widget.product.category.isEmpty
+      ? 'Uncategorized'
+      : widget.product.category;
+  String get _description => widget.product.description.isEmpty
+      ? 'No description available.'
+      : widget.product.description;
   String get _madeFrom => widget.product.madeFrom ?? '';
   String get _ecoImpact => widget.product.ecoImpact ?? '';
   double get _price => widget.product.price;
   int get _stock => widget.product.stock;
 
+  Future<void> _buyNow() async {
+    if (_stock <= 0) return;
+    context.read<CartProvider>().addItem(widget.product, qty: _quantity);
+    if (!widget.requireSignIn && context.read<AuthProvider>().isLoggedIn) {
+      if (mounted) Navigator.of(context).pushNamed('/checkout');
+    } else {
+      if (mounted) {
+        await Navigator.of(context).pushNamed('/login', arguments: '/checkout');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final imageHeight = (MediaQuery.sizeOf(context).width * 0.72).clamp(240.0, 360.0).toDouble();
+    final imageHeight = (MediaQuery.sizeOf(context).width * 0.72)
+        .clamp(240.0, 360.0)
+        .toDouble();
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -83,13 +103,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 ),
               ),
               child: widget.product.imageUrl == null
-                  ? Center(child: Text(_emoji, style: const TextStyle(fontSize: 80)))
+                  ? Center(
+                      child: Text(_emoji, style: const TextStyle(fontSize: 80)))
                   : Padding(
                       padding: const EdgeInsets.all(20),
                       child: Image.network(
                         widget.product.imageUrl!,
                         fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => Center(child: Text(_emoji, style: const TextStyle(fontSize: 80))),
+                        errorBuilder: (_, __, ___) => Center(
+                            child: Text(_emoji,
+                                style: const TextStyle(fontSize: 80))),
                       ),
                     ),
             ),
@@ -171,7 +194,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: Colors.grey.shade50,
                           borderRadius: BorderRadius.circular(999),
@@ -250,46 +274,54 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 30),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: ElevatedButton(
-                      onPressed: _stock > 0
-                          ? () {
-                              context
-                                  .read<CartProvider>()
-                                  .addItem(widget.product, qty: _quantity);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Added to cart! 🛍️'),
-                                  backgroundColor: AppColors.lightGreen,
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                              Navigator.pop(context);
-                            }
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.darkGreen,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                        disabledBackgroundColor: AppColors.textMuted,
-                      ),
-                      child: Text(
-                        _stock > 0 ? 'Add to Cart' : 'Out of Stock',
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: AppColors.border)),
+          ),
+          child: Row(
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Total',
+                      style:
+                          TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                  Text(
+                    'NPR ${(_price * _quantity).toStringAsFixed(0)}',
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.darkGreen),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _stock > 0 ? _buyNow : null,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    backgroundColor: AppColors.darkGreen,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(_stock > 0 ? 'Buy now' : 'Out of stock'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

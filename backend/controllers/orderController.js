@@ -5,6 +5,7 @@ const RewardTransaction = require('../models/RewardTransaction');
 const RewardRedemption = require('../models/RewardRedemption');
 const { sendEmail } = require('../utils/mailer');
 const { generatePaymentURL, processPaymentCallback, ESEWA_CONFIG } = require('../services/esewaService');
+const { getDeliveryCharge } = require('../utils/delivery');
 const { createNotification, notifyRoles } = require('../services/notificationService');
 const { labelForStatus, shortId } = require('../utils/notificationText');
 
@@ -40,7 +41,7 @@ const escapeHtml = (value) => String(value ?? '')
 
 exports.placeOrder = async (req, res) => {
   try {
-    const { items, shippingAddress, paymentMethod, notes, points_used, discount_amount } = req.body;
+    const { items, shippingAddress, paymentMethod, notes, points_used, discount_amount, delivery_zone } = req.body;
     
     if (!items || items.length === 0) {
       return res.status(400).json({ message: 'No items in the order' });
@@ -81,7 +82,9 @@ exports.placeOrder = async (req, res) => {
     const maxPointsForOrder = Math.floor(subtotal_amount / 10) * 500;
     const effectivePointsUsed = Math.min(requestedPoints, maxPointsForOrder);
     const appliedDiscount = (effectivePointsUsed / 500) * 10;
-    const total_amount = Math.max(0, subtotal_amount - appliedDiscount);
+    const normalizedDeliveryZone = delivery_zone === 'outside_ringroad' ? 'outside_ringroad' : 'inside_ringroad';
+    const delivery_charge = getDeliveryCharge(normalizedDeliveryZone);
+    const total_amount = Math.max(0, subtotal_amount - appliedDiscount + delivery_charge);
 
     const order = await Order.create({
       user_id: req.user._id,
@@ -89,6 +92,8 @@ exports.placeOrder = async (req, res) => {
       subtotal_amount,
       points_used: effectivePointsUsed,
       discount_amount: appliedDiscount,
+      delivery_zone: normalizedDeliveryZone,
+      delivery_charge,
       total_amount,
       payment_method: paymentMethod || 'cash_on_delivery',
       shipping_address: shippingAddress,
@@ -138,6 +143,7 @@ exports.placeOrder = async (req, res) => {
       </ul>
       <p>Subtotal: Rs. ${subtotal_amount}</p>
       <p>Discount: Rs. ${appliedDiscount} (${effectivePointsUsed} points used)</p>
+      <p>Delivery charge (${normalizedDeliveryZone.replace('_', ' ')}): Rs. ${delivery_charge}</p>
       <p><strong>Total Amount: Rs. ${total_amount}</strong></p>
       <p>Shipping Address: ${typeof shippingAddress === 'object' ? JSON.stringify(shippingAddress) : shippingAddress}</p>
       <p>Payment Method: ${paymentMethod || 'cash_on_delivery'}</p>
@@ -168,7 +174,8 @@ exports.getMyOrders = async (req, res) => {
 exports.getAllOrders = async (req, res) => {
   try {
     const { status } = req.query;
-    const filter = status ? { order_status: status } : {};
+    const filter = { payment_status: 'paid' };
+    if (status) filter.order_status = status;
     const orders = await Order.find(filter)
       .populate('user_id', 'full_name email phone')
       .populate('delivery_collector_id', 'full_name phone')
@@ -279,7 +286,7 @@ exports.updateOrderStatus = async (req, res) => {
 // eSewa Payment Integration
 exports.initiateEsewaPayment = async (req, res) => {
   try {
-    const { items, shippingAddress, notes, points_used, discount_amount } = req.body;
+    const { items, shippingAddress, notes, points_used, discount_amount, delivery_zone } = req.body;
     
     if (!items || items.length === 0) {
       return res.status(400).json({ message: 'No items in the order' });
@@ -317,7 +324,9 @@ exports.initiateEsewaPayment = async (req, res) => {
     const maxPointsForOrder = Math.floor(subtotal_amount / 10) * 500;
     const effectivePointsUsed = Math.min(requestedPoints, maxPointsForOrder);
     const appliedDiscount = (effectivePointsUsed / 500) * 10;
-    const total_amount = Math.max(0, subtotal_amount - appliedDiscount);
+    const normalizedDeliveryZone = delivery_zone === 'outside_ringroad' ? 'outside_ringroad' : 'inside_ringroad';
+    const delivery_charge = getDeliveryCharge(normalizedDeliveryZone);
+    const total_amount = Math.max(0, subtotal_amount - appliedDiscount + delivery_charge);
 
     // Create pending order
     const order = await Order.create({
@@ -326,6 +335,8 @@ exports.initiateEsewaPayment = async (req, res) => {
       subtotal_amount,
       points_used: effectivePointsUsed,
       discount_amount: appliedDiscount,
+      delivery_zone: normalizedDeliveryZone,
+      delivery_charge,
       total_amount,
       payment_method: 'esewa',
       shipping_address: shippingAddress,
@@ -419,19 +430,21 @@ exports.verifyEsewaPayment = async (req, res) => {
       return res.status(400).json({ message: 'Missing payment verification data' });
     }
 
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
     // Verify payment with eSewa when the legacy callback format is used.
-    const paymentResult = data ? { success: true } : await processPaymentCallback({ ref_id, transaction_uuid });
+    const paymentResult = data
+      ? { success: true }
+      : await processPaymentCallback({ ref_id, transaction_uuid, total_amount: order.total_amount });
 
     if (!paymentResult.success) {
       return res.status(400).json({ message: 'Payment verification failed', details: paymentResult });
     }
 
     // Update order with payment confirmation
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
     // Update order status
     order.payment_status = 'paid';
     order.order_status = 'placed';
