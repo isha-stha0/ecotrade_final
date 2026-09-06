@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '', // Uses Vite proxy
+  baseURL: 'http://130.210.57.68:5000',
   headers: {
     'Content-Type': 'application/json',
   },

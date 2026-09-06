@@ -120,12 +120,24 @@ class _CollectorScreenState extends State<CollectorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(children: [
-          Image.asset('assets/images/ecotrade_logo.jpg',
-              width: 48, height: 42, fit: BoxFit.contain),
-          const SizedBox(width: 8),
-          const Text('Collector Portal'),
-        ]),
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/ecotrade_logo.jpg',
+              width: 40,
+              height: 36,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(width: 4),
+            const Flexible(
+              child: Text(
+                'Collector Portal',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
               icon: const Icon(Icons.notifications_outlined),

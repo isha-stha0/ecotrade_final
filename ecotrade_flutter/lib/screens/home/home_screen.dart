@@ -69,13 +69,22 @@ class _HomeScreenState extends State<HomeScreen> {
               if (_loading) const EcoLoading()
               else ...[
                 // Stats
-                GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.8, children: [
-                  StatCard(label: 'EcoPoints', value: '${user?.ecoPoints ?? 0}', icon: Icons.emoji_events, color: AppColors.yellow),
-                  StatCard(label: 'Scraps', value: '${scraps.length}', icon: Icons.recycling, color: AppColors.green400),
-                  StatCard(label: 'Recycled (kg)', value: '${user?.totalScraps.toStringAsFixed(0) ?? 0}', icon: Icons.trending_up, color: AppColors.blue),
-                  StatCard(label: 'Orders', value: '${orders.length}', icon: Icons.shopping_bag_outlined, color: AppColors.purple),
-                ]),
+                GridView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 7,
+                    mainAxisSpacing: 7,
+                    mainAxisExtent: 88,
+                  ),
+                  children: [
+                    StatCard(label: 'EcoPoints', value: '${user?.ecoPoints ?? 0}', icon: Icons.emoji_events, color: AppColors.yellow),
+                    StatCard(label: 'Scraps', value: '${scraps.length}', icon: Icons.recycling, color: AppColors.green400),
+                    StatCard(label: 'Recycled (kg)', value: '${user?.totalScraps.toStringAsFixed(0) ?? 0}', icon: Icons.trending_up, color: AppColors.blue),
+                    StatCard(label: 'Orders', value: '${orders.length}', icon: Icons.shopping_bag_outlined, color: AppColors.purple),
+                  ],
+                ),
                 const SizedBox(height: 20),
 
                 // EcoPoints Banner
