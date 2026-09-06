@@ -62,10 +62,8 @@ class LocationTrackingService {
   /// Fetch collector location from backend
   Future<void> _fetchCollectorLocation(String scrapId) async {
     try {
-      final response = await ApiService.get('/api/scrap/$scrapId/location');
-
-      if (response.statusCode == 200) {
-        final data = response.data;
+      final data =
+          await ApiService().get('/scrap/$scrapId/location') as Map<String, dynamic>;
         
         // Emit location update
         if (data['collectorLocation'] != null) {
@@ -92,7 +90,6 @@ class LocationTrackingService {
           // Emit to stream
           _locationStreamController.add(locationData);
         }
-      }
     } catch (e) {
       print('Error fetching collector location: $e');
       rethrow;

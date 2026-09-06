@@ -12,6 +12,8 @@
     <key>CFBundleVersion</key><string>$(FLUTTER_BUILD_NUMBER)</string>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><true/></dict>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>EcoTrade uses your location to set pickup and shipping locations.</string>
     <key>UILaunchStoryboardName</key><string>LaunchScreen</string>
     <key>UISupportedInterfaceOrientations</key>
     <array><string>UIInterfaceOrientationPortrait</string></array>

@@ -278,7 +278,7 @@ class _SubmitScrapScreenState extends State<SubmitScrapScreen> {
             const Text('Unit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted, letterSpacing: 0.04)),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: _unit, dropdownColor: AppColors.bgCard,
+              value: _unit, dropdownColor: AppColors.bgCard,
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
               decoration: const InputDecoration(),
               items: ['kg','pieces','liters'].map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),

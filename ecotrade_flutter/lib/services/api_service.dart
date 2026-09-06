@@ -33,6 +33,14 @@ class ApiService {
     };
   }
 
+  Future<dynamic> get(String path) async {
+    final headers = await _headers;
+    final normalizedPath = path.startsWith('/') ? path : '/$path';
+    final res = await _send(
+        () => http.get(Uri.parse('$base$normalizedPath'), headers: headers));
+    return _handle(res);
+  }
+
   dynamic _handle(http.Response res) {
     dynamic body;
     try {

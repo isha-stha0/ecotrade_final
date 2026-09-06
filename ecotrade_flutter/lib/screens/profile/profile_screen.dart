@@ -193,7 +193,7 @@ class ProfileScreen extends StatelessWidget {
           const Text('Issue Type', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
-            initialValue: issueType,
+            value: issueType,
             dropdownColor: AppColors.bgCard,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: const InputDecoration(),
