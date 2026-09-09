@@ -5,11 +5,12 @@ const Order = require('../models/Order');
 
 exports.getUserDashboard = async (req, res) => {
   try {
-    const [myScraps, myOrders] = await Promise.all([
+    const [myScraps, myOrders, totalOrders] = await Promise.all([
       Scrap.find({ user_id: req.user._id }).sort('-createdAt').limit(5),
-      Order.find({ user_id: req.user._id }).populate('items.product_id','name price').sort('-createdAt').limit(5)
+      Order.find({ user_id: req.user._id }).populate('items.product_id','name price').sort('-createdAt').limit(5),
+      Order.countDocuments({ user_id: req.user._id }),
     ]);
-    res.json({ user: req.user, myScraps, myOrders });
+    res.json({ user: req.user, myScraps, myOrders, totalOrders });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 

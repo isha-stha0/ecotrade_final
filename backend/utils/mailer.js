@@ -3,15 +3,18 @@ const nodemailer = require('nodemailer');
 const sendEmail = async ({ to, subject, text, html }) => {
   try {
     let transporter;
-    const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
-    const smtpPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+    const smtpUser = (process.env.SMTP_USER || process.env.EMAIL_USER || '').trim();
+    // Gmail displays app passwords with spaces, but SMTP authentication expects
+    // the 16-character value without formatting spaces.
+    const smtpPass = (process.env.SMTP_PASS || process.env.EMAIL_PASS || '').replace(/\s+/g, '');
     const isSmtpConfigured = smtpUser && smtpPass;
 
     if (isSmtpConfigured) {
+      const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
       transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_PORT === '465',
+        port: smtpPort,
+        secure: smtpPort === 465,
         auth: {
           user: smtpUser,
           pass: smtpPass,
