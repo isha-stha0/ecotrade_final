@@ -247,14 +247,15 @@ class OrderModel {
         paymentMethod:
             (j['paymentMethod'] ?? j['payment_method'] ?? 'cash_on_delivery')
                 .toString(),
-        totalAmount:
-            ((j['totalAmount'] ?? j['total_amount'] ?? 0) as num).toDouble(),
+        totalAmount: _asDouble(j['totalAmount'] ?? j['total_amount']),
         items: (j['items'] as List? ?? [])
             .whereType<Map>()
             .map((e) => OrderItemModel.fromJson(Map<String, dynamic>.from(e)))
             .toList(),
         shippingAddress: j['shippingAddress'] ?? j['shipping_address'],
-        createdAt: DateTime.tryParse(j['createdAt'] ?? '') ?? DateTime.now(),
+        createdAt: DateTime.tryParse(
+                (j['createdAt'] ?? j['created_at'] ?? '').toString()) ??
+            DateTime.now(),
       );
 }
 
@@ -274,10 +275,20 @@ class OrderItemModel {
     return OrderItemModel(
       productId: p is Map ? (p['_id'] ?? p['id'])?.toString() : p?.toString(),
       productName: p is Map ? p['name'] : null,
-      quantity: ((j['quantity'] ?? 1) as num).toInt(),
-      price: ((j['price'] ?? j['price_at_time'] ?? 0) as num).toDouble(),
+      quantity: _asInt(j['quantity'], fallback: 1),
+      price: _asDouble(j['price'] ?? j['price_at_time']),
     );
   }
+}
+
+double _asDouble(dynamic value, {double fallback = 0}) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+int _asInt(dynamic value, {int fallback = 0}) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
 }
 
 class CartItem {

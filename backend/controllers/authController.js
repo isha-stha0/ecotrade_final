@@ -113,7 +113,7 @@ exports.forgotPassword = async (req, res) => {
     if (!user) return res.json({ message: genericMessage });
     if (!user.is_active) return res.status(403).json({ message: 'Account deactivated. Contact an administrator to unlock it.' });
 
-    const latestRequest = await PasswordReset.findOne({ user_id: user._id }).sort('-createdAt');
+    const latestRequest = await PasswordReset.findOne({ user_id: user._id, purpose: 'forgot' }).sort('-createdAt');
     const secondsSinceLastRequest = latestRequest
       ? Math.floor((Date.now() - latestRequest.createdAt.getTime()) / 1000)
       : 60;
@@ -165,8 +165,23 @@ exports.requestChangePasswordOtp = async (req, res) => {
     if (elapsed < 60) return res.status(429).json({ message: `Please wait ${60 - elapsed} seconds before requesting another code.`, retry_after_seconds: 60 - elapsed });
     await PasswordReset.updateMany({ user_id: user._id, purpose: 'change', is_used: false }, { $set: { is_used: true } });
     const code = crypto.randomInt(100000, 1000000).toString();
-    await PasswordReset.create({ user_id: user._id, token: crypto.createHash('sha256').update(code).digest('hex'), expires_at: new Date(Date.now() + 5 * 60 * 1000), purpose: 'change' });
-    await sendEmail({ to: user.email, subject: 'EcoTrade change password code', text: `Your EcoTrade password change code is: ${code}. It expires in 5 minutes.`, html: `<p>Your EcoTrade password change code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>This code expires in 5 minutes.</p>` });
+    const resetRecord = await PasswordReset.create({
+      user_id: user._id,
+      token: crypto.createHash('sha256').update(code).digest('hex'),
+      expires_at: new Date(Date.now() + 5 * 60 * 1000),
+      purpose: 'change',
+    });
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'EcoTrade change password code',
+        text: `Your EcoTrade password change code is: ${code}. It expires in 5 minutes.`,
+        html: `<p>Your EcoTrade password change code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>This code expires in 5 minutes.</p>`,
+      });
+    } catch (emailError) {
+      await PasswordReset.deleteOne({ _id: resetRecord._id });
+      throw emailError;
+    }
     res.json({ message: 'A verification code was sent to your email.' });
   } catch (e) { res.status(503).json({ message: 'Unable to send verification email. Please try again later.' }); }
 };
@@ -217,7 +232,7 @@ exports.verifyResetCode = async (req, res) => {
     if (!user) return res.status(400).json({ message: 'Invalid or expired password reset code' });
     if (!user.is_active) return res.status(403).json({ message: 'Account deactivated. Contact an administrator to unlock it.' });
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    const resetRecord = await PasswordReset.findOne({ user_id: user._id, token: tokenHash, expires_at: { $gt: new Date() }, is_used: false });
+    const resetRecord = await PasswordReset.findOne({ user_id: user._id, purpose: 'forgot', token: tokenHash, expires_at: { $gt: new Date() }, is_used: false });
     if (!resetRecord) {
       const deactivated = await recordSecurityFailure(user, 'failed_otp_attempts', 'Too many invalid password reset OTP attempts');
       return res.status(deactivated ? 403 : 400).json({ message: deactivated ? 'Account deactivated after too many invalid OTP attempts. Contact an administrator.' : 'Invalid or expired password reset code' });
@@ -244,6 +259,7 @@ exports.resetPassword = async (req, res) => {
 
     const resetRecord = await PasswordReset.findOne({
       user_id: user._id,
+      purpose: 'forgot',
       expires_at: { $gt: new Date() },
       is_used: false,
       verified_at: { $ne: null },
