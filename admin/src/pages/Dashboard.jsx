@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { dashboardAPI } from '../api/api';
+import { dashboardAPI, orderAPI } from '../api/api';
 import { 
   Users, 
   Recycle, 
@@ -34,8 +34,27 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const res = await dashboardAPI.getStats();
-        setData(res);
+        const [dashboard, orders] = await Promise.all([
+          dashboardAPI.getStats(),
+          orderAPI.getOrders(),
+        ]);
+        const orderList = Array.isArray(orders) ? orders : (orders?.orders || []);
+        const dashboardStats = dashboard?.stats || {};
+        const dashboardOrderTotal = Number(dashboardStats.totalOrders);
+        const orderTotal = Number(orders?.total);
+
+        setData({
+          ...dashboard,
+          stats: {
+            ...dashboardStats,
+            totalOrders: orderTotal > 0
+              ? orderTotal
+              : (orderList.length > 0 ? orderList.length : (dashboardOrderTotal || 0)),
+          },
+          recentOrders: dashboard?.recentOrders?.length
+            ? dashboard.recentOrders
+            : orderList.slice(0, 5),
+        });
       } catch (err) {
         console.error('Error fetching dashboard stats:', err);
         setError('Failed to load dashboard metrics. Check server status.');
